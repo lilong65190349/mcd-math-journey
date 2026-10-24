@@ -3,6 +3,10 @@
 本项目的立论只有一句：**题目里的数字都是真的，答案由麦当劳 MCP 真实计算校验。**
 下面把「用了什么、怎么调、为什么非它不可、断了怎么办、安全怎么保证」全部写实。
 
+> 关于五条故事线：题材（西游记 / 三国演义 / 丝路商队 / 郑和下西洋 / 水浒传）**只影响关名、角色与题面文案**，
+> 9 个题型模板只按「第几关」索引，取数、算答案、`calculate-price` 复核、降级链路与题材完全无关——
+> **MCP 数据链路不因故事线而改变**。
+
 - 端点：`https://mcp.mcd.cn`
 - 传输：JSON-RPC 2.0 over Streamable HTTP
 - 请求头：`Authorization: Bearer <MCD_MCP_TOKEN>`、`Accept: application/json, text/event-stream`

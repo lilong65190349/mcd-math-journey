@@ -1,6 +1,6 @@
 ---
 name: mcd-math-journey
-description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，为小学 3-6 年级生成可被真实接口校验答案的数学应用题，以《西游记》取经闯关作为故事外壳。触发词：麦麦取经录、取经数学、真实数据数学题、按年级出题、错题本、家长周报、数学闯关、MCP 出题。
+description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，为小学 3-6 年级生成可被真实接口校验答案的数学应用题，以《西游记》《三国演义》《水浒传》、丝路商队、郑和下西洋五条故事线之一作为情境外壳。触发词：麦麦取经录、取经数学、三国数学题、丝路数学题、真实数据数学题、按年级出题、错题本、家长周报、数学闯关、MCP 出题。
 ---
 
 # 麦麦取经录（mcd-math-journey）
@@ -13,16 +13,17 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 
 | 能力 | 入口 | 说明 |
 | --- | --- | --- |
-| 列出九关八十一难与通关状态 | `python scripts/cli.py stages` | 只读本地配置与进度 |
-| 按关卡 / 年级 / 知识点出题 | `python scripts/cli.py play --level 3-2`、`--grade 4 --count 5`、`--kp g3_mul_basic` | 题目绑定真实数据字段 |
+| 列出故事线 | `python scripts/cli.py stories` | 读 `data/storylines/index.json`，含 `available` 状态 |
+| 列出九关八十一难与通关状态 | `python scripts/cli.py stages`（全部线摘要）/ `stages --story sanguo`（单线 9 关） | 只读本地配置与进度 |
+| 按关卡 / 年级 / 知识点出题 | `play --story sanguo --level sanguo-3-2`、`play --grade 4 --count 5`、`play --kp g3_mul_basic` | 题目绑定真实数据字段；`--story` 默认 `xiyou` |
 | 三级递进提示 | 交互中按 `h` | 指方向 → 给算式框架 → 给关键中间结果；**任何一级都不给最终答案** |
 | 校验答案 | `verify.check_answer(problem, answer)` | `Decimal` 容差 0.01；优先调用 MCP `calculate-price` 复核 |
 | 错因诊断 | `verify.diagnose(problem, answer)` | 归到 4 类：运算错误 / 数量关系错误 / 单位换算错误 / 漏用条件 |
 | 分步讲解 | `verify.explain(problem)` | Markdown，结尾附「适量、均衡搭配，不浪费。」 |
-| 错题本 | `python scripts/cli.py wrongbook` | 本机 SQLite，按知识点聚合 |
-| 家长周报 | `python scripts/cli.py report --days 7` | Markdown，含薄弱知识点 Top3 与下周建议 |
+| 错题本 | `python scripts/cli.py wrongbook [--story ID]` | 本机 SQLite，按知识点聚合；不传 `--story` 则全量并标注来源线 |
+| 家长周报 | `python scripts/cli.py report --days 7 [--story ID]` | Markdown，含薄弱知识点 Top3 与下周建议 |
 | 数据抓取与状态 | `python scripts/data_source.py --fetch` / `--status` | 三级降级：MCP → 缓存 → 示例 |
-| 环境自检 | `python scripts/cli.py doctor` | 令牌、连通性、缓存、示例数据、数据库 |
+| 环境自检 | `python scripts/cli.py doctor` | 令牌、连通性、缓存、示例数据、数据库、故事线注册数 |
 
 ### 不做什么（硬边界）
 
@@ -31,6 +32,8 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 - 不提供医疗 / 营养 / 膳食建议；营养数值仅用于计算题，不构成专业建议。
 - 不诱导额外消费：题目只使用学习必需的数量，不出现鼓励加量购买或以优惠为由增加购买量的表述。
 - 不模仿、不使用任何现代影视改编作品的形象；演示页只有抽象几何装饰，无人物立绘。
+- **不新增近现代史题材**：故事线只从公有领域古典作品与公开历史事实（丝路商旅、郑和下西洋）取材，
+  每条线的 JSON 必须写明 `era_note`；不含冲突、暴力、宗教与超自然表述。
 
 ## 二、只读工具白名单
 
@@ -55,14 +58,17 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 
 ```
 1. 识别年级        → 未指定时默认按关卡 grade_hint；显式 --grade 优先
-2. 选关卡          → 命中 data/journey.json 的 level_id（1-1 … 9-9）
-3. 取真实数据      → data_source 三级降级，记录 source（mcp/cache/sample）
-4. 出题            → 套用该关题型模板，Decimal 精确算出 answer
-5. 三级提示        → h1 指方向 / h2 算式框架 / h3 关键中间结果（均不含最终答案）
-6. 学生作答 → 校验 → 有 token 时再调 calculate-price 复核，记录 verify_source
-7. 讲解            → 分步 Markdown + 校验算式 + 「适量、均衡搭配，不浪费。」
-8. 记错题          → SQLite attempts 表；一关 9 难全对则 clear_stage 记星
-9. 生成周报        → 家长视角，薄弱知识点 Top3 + 下周建议
+2. 确认故事线      → 未指定时用注册表默认线 xiyou；显式 --story 优先（只列 available 的线）
+3. 选关卡          → 命中 data/storylines/<story>.json 的 level_id
+                      · 默认线：1-1 … 9-9（历史格式，保持不变）
+                      · 其他线：<story>-<stage>-<difficulty>，如 sanguo-3-2
+4. 取真实数据      → data_source 三级降级，记录 source（mcp/cache/sample）；数据与题材无关
+5. 出题            → 套用该关题型模板（模板只按「第几关」索引），Decimal 精确算出 answer
+6. 三级提示        → h1 指方向 / h2 算式框架 / h3 关键中间结果（均不含最终答案）
+7. 学生作答 → 校验 → 有 token 时再调 calculate-price 复核，记录 verify_source
+8. 讲解            → 分步 Markdown + 校验算式 + 「适量、均衡搭配，不浪费。」
+9. 记错题          → SQLite attempts 表（带 story 列）；一关 9 难全对则 clear_stage 记星
+10. 生成周报       → 家长视角，按线过滤或全量汇总 + 薄弱知识点 Top3 + 下周建议
 ```
 
 ## 四、输出格式规范
@@ -71,6 +77,8 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 
 ```json
 {
+  "story_id": "xiyou",
+  "story_name": "西游记",
   "level_id": "3-2",
   "stage": 3,
   "stage_name": "八戒买饼",
@@ -92,7 +100,10 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 }
 ```
 
-> 注：`data_table.title` 的后缀（`（示例数据）` / `（实时数据）` / `（缓存数据 YYYY-MM-DD）`）
+> 注 1：`story` 这个键在本项目里一直是**情境叙述文本**（不是故事线 id），故事线标识放在
+> `story_id`（英文 id）与 `story_name`（中文名），这样旧调用方读 `problem["story"]` 不会突然拿到 `"sanguo"`。
+>
+> 注 2：`data_table.title` 的后缀（`（示例数据）` / `（实时数据）` / `（缓存数据 YYYY-MM-DD）`）
 > 由 `data_source` 的实际级别决定，与题目字段严格同源——上例 `data_source` 为 `sample`，
 > 所以标题是「（示例数据）」；若切到实时数据，同一道题的标题会变成「（实时数据）」。
 
@@ -120,6 +131,9 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 - `data_source` 与 `verify_source` 必须如实反映实际路径，禁止把降级结果标注为 `mcp`。
 - 金额统一两位小数字符串；百分数只写数值（`"19.6"`），单位单独放 `unit: "%"`。
 - 讲解 Markdown 的最后一行固定为 `> 适量、均衡搭配，不浪费。`
+- **故事线可插拔**：新增一条线 = `data/storylines/index.json` 加一项 + 一份同构 JSON
+  （`id / name / subtitle / era_note / roles / stages`），`level_id` 用 `<story>-<stage>-<difficulty>`；
+  9 个数学模板只按「第几关」索引，**不需要改任何数学代码**。`available: false` 的线不注册、不列出。
 
 ## 五、合规约束
 

@@ -1,0 +1,603 @@
+{
+  "id": "silu",
+  "name": "丝路商队",
+  "subtitle": "驼铃西去，账目分明",
+  "era_note": "取材于古代丝绸之路商旅活动的历史常识（长安、敦煌、疏勒、撒马尔罕等古地名）",
+  "roles": {
+    "clever": "老掌柜",
+    "price": "驼队管事",
+    "unit": "账房先生",
+    "review": "领队"
+  },
+  "version": "1.0.0",
+  "description": "「麦麦取经录」丝路商队故事线：九关八十一难，把公有领域的经典情境用作数学任务外壳，数学模板与西游记完全一致。",
+  "disclaimer": "本文件中的故事情境仅作数学题目的比喻外壳，不含任何宗教、超自然或暴力表述；餐品数据以麦当劳官方渠道实时结果为准。",
+  "stages": [
+    {
+      "stage": 1,
+      "name": "出长安",
+      "theme": "先把货值合起来：加法就是把两堆并成一堆",
+      "role_focus": "领队",
+      "grade_hint": 3,
+      "op_family": "add",
+      "data_hint": "nutrition",
+      "levels": [
+        {
+          "level_id": "silu-1-1",
+          "kp_id": "g3_add_sub",
+          "brief": "把两批货物的热量合并，共多少千卡？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-1-2",
+          "kp_id": "g3_add_sub",
+          "brief": "两份货物热量相加，合计多少千卡？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-1-3",
+          "kp_id": "g3_add_sub",
+          "brief": "干粮与饮品的能量合并，共多少千卡？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-1-4",
+          "kp_id": "g3_add_sub",
+          "brief": "三批货物热量接连相加，共多少？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-1-5",
+          "kp_id": "g3_add_sub",
+          "brief": "先加前两批，再加第三批，合计多少？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-1-6",
+          "kp_id": "g3_add_sub",
+          "brief": "三份货物热量凑一起，共多少千卡？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-1-7",
+          "kp_id": "g3_add_sub",
+          "brief": "四批货物热量相加，别重复计算。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-1-8",
+          "kp_id": "g3_add_sub",
+          "brief": "四批货物能量合计多少？先估再算。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-1-9",
+          "kp_id": "g3_add_sub",
+          "brief": "四项数据连加，算完核对答案单位。",
+          "data_hint": "nutrition"
+        }
+      ]
+    },
+    {
+      "stage": 2,
+      "name": "过关卡",
+      "theme": "路费分几段扣，一段段减掉更清楚",
+      "role_focus": "驼队管事",
+      "grade_hint": 3,
+      "op_family": "sub",
+      "data_hint": "nutrition",
+      "levels": [
+        {
+          "level_id": "silu-2-1",
+          "kp_id": "g3_multi_sub",
+          "brief": "税费预算有限，先减两笔，还剩多少？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-2-2",
+          "kp_id": "g3_multi_sub",
+          "brief": "从预算里连减两笔，看还剩多少千卡。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-2-3",
+          "kp_id": "g3_multi_sub",
+          "brief": "两笔税费扣掉，预算还剩多少千卡？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-2-4",
+          "kp_id": "g3_multi_sub",
+          "brief": "三笔税费一起减掉，预算还剩多少？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-2-5",
+          "kp_id": "g3_multi_sub",
+          "brief": "先求三笔税费合计，再从预算里减。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-2-6",
+          "kp_id": "g3_multi_sub",
+          "brief": "预算固定，连减三笔后还剩多少？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-2-7",
+          "kp_id": "g3_multi_sub",
+          "brief": "四笔税费依次减掉，算算预算剩多少。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-2-8",
+          "kp_id": "g3_multi_sub",
+          "brief": "先合并四笔税费，再从预算中扣除。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-2-9",
+          "kp_id": "g3_multi_sub",
+          "brief": "连减四笔税费，看预算还剩多少千卡。",
+          "data_hint": "nutrition"
+        }
+      ]
+    },
+    {
+      "stage": 3,
+      "name": "驼队编组",
+      "theme": "几个几相加，用乘法一步到位",
+      "role_focus": "老掌柜",
+      "grade_hint": 3,
+      "op_family": "mul",
+      "data_hint": "menu",
+      "levels": [
+        {
+          "level_id": "silu-3-1",
+          "kp_id": "g3_mul_basic",
+          "brief": "两峰骆驼配同款料，一共多少元？",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-3-2",
+          "kp_id": "g3_mul_basic",
+          "brief": "三份驼料的金额，按单价算多少元？",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-3-3",
+          "kp_id": "g3_mul_basic",
+          "brief": "四峰骆驼的料一起结算，需要多少元？",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-3-4",
+          "kp_id": "g3_mul_basic",
+          "brief": "五份同款驼料，按单价算总价多少？",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-3-5",
+          "kp_id": "g4_mul_3by2",
+          "brief": "六份驼料的金额，用乘法一次算出。",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-3-6",
+          "kp_id": "g4_mul_3by2",
+          "brief": "七份同款，先估一估总价再精算。",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-3-7",
+          "kp_id": "g4_mul_3by2",
+          "brief": "八份驼料的总价是多少？注意小数位。",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-3-8",
+          "kp_id": "g5_decimal_muldiv",
+          "brief": "九份同款驼料，总金额是多少元？",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-3-9",
+          "kp_id": "g5_decimal_muldiv",
+          "brief": "把单价乘份数，整单金额是多少元？",
+          "data_hint": "menu"
+        }
+      ]
+    },
+    {
+      "stage": 4,
+      "name": "均分货物",
+      "theme": "平均分与包含除：问问里面有几个几",
+      "role_focus": "领队",
+      "grade_hint": 4,
+      "op_family": "div",
+      "data_hint": "points",
+      "levels": [
+        {
+          "level_id": "silu-4-1",
+          "kp_id": "g3_div_basic",
+          "brief": "货物够分几队？用除法算一算。",
+          "data_hint": "points"
+        },
+        {
+          "level_id": "silu-4-2",
+          "kp_id": "g3_div_basic",
+          "brief": "总量里含几个每份？最多能分几份？",
+          "data_hint": "points"
+        },
+        {
+          "level_id": "silu-4-3",
+          "kp_id": "g3_div_basic",
+          "brief": "先估商再试算，最多能分几份？",
+          "data_hint": "points"
+        },
+        {
+          "level_id": "silu-4-4",
+          "kp_id": "g3_div_basic",
+          "brief": "求出商以后，再核对余数是多少。",
+          "data_hint": "points"
+        },
+        {
+          "level_id": "silu-4-5",
+          "kp_id": "g3_div_basic",
+          "brief": "总量除以每份重量，商是几份？",
+          "data_hint": "points"
+        },
+        {
+          "level_id": "silu-4-6",
+          "kp_id": "g4_div_2digit",
+          "brief": "每份数量不同，看清再算能分几份。",
+          "data_hint": "points"
+        },
+        {
+          "level_id": "silu-4-7",
+          "kp_id": "g4_div_2digit",
+          "brief": "商和余数都要算准，最多分几份？",
+          "data_hint": "points"
+        },
+        {
+          "level_id": "silu-4-8",
+          "kp_id": "g4_div_2digit",
+          "brief": "用乘法验算商，最多能分几份？",
+          "data_hint": "points"
+        },
+        {
+          "level_id": "silu-4-9",
+          "kp_id": "g4_div_2digit",
+          "brief": "余数要小于每份，最多能分几份？",
+          "data_hint": "points"
+        }
+      ]
+    },
+    {
+      "stage": 5,
+      "name": "换秤",
+      "theme": "克与千克之间，只差一个进率",
+      "role_focus": "账房先生",
+      "grade_hint": 4,
+      "op_family": "decimal",
+      "data_hint": "nutrition",
+      "levels": [
+        {
+          "level_id": "silu-5-1",
+          "kp_id": "g4_decimal",
+          "brief": "两份货包的净重合计多少千克？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-5-2",
+          "kp_id": "g4_decimal",
+          "brief": "三份货包的总质量换成千克多少？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-5-3",
+          "kp_id": "g4_decimal",
+          "brief": "四份货包的质量合并，用千克表示。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-5-4",
+          "kp_id": "g4_decimal",
+          "brief": "五份货包一共多少克？再换成千克。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-5-5",
+          "kp_id": "g3_unit_measure",
+          "brief": "六份货包的质量合计多少千克？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-5-6",
+          "kp_id": "g3_unit_measure",
+          "brief": "先求总克数，再换算成千克。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-5-7",
+          "kp_id": "g5_decimal_muldiv",
+          "brief": "换秤时记得：1 千克 = 1000 克。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-5-8",
+          "kp_id": "g5_decimal_muldiv",
+          "brief": "多份货包总质量用千克表示多少？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-5-9",
+          "kp_id": "g4_decimal",
+          "brief": "先算总克数，再换算并保留两位小数。",
+          "data_hint": "nutrition"
+        }
+      ]
+    },
+    {
+      "stage": 6,
+      "name": "走河西",
+      "theme": "先算天数，再算路程：两步不能省",
+      "role_focus": "领队",
+      "grade_hint": 4,
+      "op_family": "time",
+      "data_hint": "calendar",
+      "levels": [
+        {
+          "level_id": "silu-6-1",
+          "kp_id": "g3_calendar",
+          "brief": "先算走了几天，再算总路程。",
+          "data_hint": "calendar"
+        },
+        {
+          "level_id": "silu-6-2",
+          "kp_id": "g3_calendar",
+          "brief": "天数算对了吗？再乘每天的路程。",
+          "data_hint": "calendar"
+        },
+        {
+          "level_id": "silu-6-3",
+          "kp_id": "g3_calendar",
+          "brief": "含首尾两天共几天？再求总路程。",
+          "data_hint": "calendar"
+        },
+        {
+          "level_id": "silu-6-4",
+          "kp_id": "g3_calendar",
+          "brief": "起止日期看仔细，一共走多少千米？",
+          "data_hint": "calendar"
+        },
+        {
+          "level_id": "silu-6-5",
+          "kp_id": "g3_calendar",
+          "brief": "先求天数，再用天数乘每天千米数。",
+          "data_hint": "calendar"
+        },
+        {
+          "level_id": "silu-6-6",
+          "kp_id": "g3_calendar",
+          "brief": "天数与每天路程都算对，总路程多少？",
+          "data_hint": "calendar"
+        },
+        {
+          "level_id": "silu-6-7",
+          "kp_id": "g3_calendar",
+          "brief": "日期跨月了，含首尾数清天数再算。",
+          "data_hint": "calendar"
+        },
+        {
+          "level_id": "silu-6-8",
+          "kp_id": "g4_mixed_ops",
+          "brief": "两问两步：先求天数，再求总路程。",
+          "data_hint": "calendar"
+        },
+        {
+          "level_id": "silu-6-9",
+          "kp_id": "g5_equation",
+          "brief": "把天数当份数，用乘法求总路程。",
+          "data_hint": "calendar"
+        }
+      ]
+    },
+    {
+      "stage": 7,
+      "name": "抽成",
+      "theme": "部分与整体：百分之几说的就是这个比",
+      "role_focus": "老掌柜",
+      "grade_hint": 5,
+      "op_family": "percent",
+      "data_hint": "nutrition",
+      "levels": [
+        {
+          "level_id": "silu-7-1",
+          "kp_id": "g3_fraction_intro",
+          "brief": "干粮蛋白质供能占总能量百分之几？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-7-2",
+          "kp_id": "g3_fraction_intro",
+          "brief": "先算蛋白质的千卡数，再求百分比。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-7-3",
+          "kp_id": "g3_fraction_intro",
+          "brief": "百分号前保留一位小数，结果多少？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-7-4",
+          "kp_id": "g5_fraction_addsub",
+          "brief": "部分除以整体再乘 100%，得多少？",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-7-5",
+          "kp_id": "g5_fraction_addsub",
+          "brief": "换一样干粮算占比，方法一样。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-7-6",
+          "kp_id": "g5_fraction_addsub",
+          "brief": "先求部分量，再和总量比，得百分数。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-7-7",
+          "kp_id": "g6_percent",
+          "brief": "把结果写成百分数，保留一位小数。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-7-8",
+          "kp_id": "g6_percent",
+          "brief": "占比不到两成？先算准再判断。",
+          "data_hint": "nutrition"
+        },
+        {
+          "level_id": "silu-7-9",
+          "kp_id": "g6_percent",
+          "brief": "算出占比后，保留一位小数写百分数。",
+          "data_hint": "nutrition"
+        }
+      ]
+    },
+    {
+      "stage": 8,
+      "name": "十日账",
+      "theme": "平均数是最公平的那把尺子",
+      "role_focus": "账房先生",
+      "grade_hint": 4,
+      "op_family": "average",
+      "data_hint": "menu",
+      "levels": [
+        {
+          "level_id": "silu-8-1",
+          "kp_id": "g4_bar_chart",
+          "brief": "三样货品价格不同，平均每样多少元？",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-8-2",
+          "kp_id": "g4_bar_chart",
+          "brief": "先求总价，再除以 3 求平均数。",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-8-3",
+          "kp_id": "g4_bar_chart",
+          "brief": "平均数在最高价与最低价之间，算一算。",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-8-4",
+          "kp_id": "g4_bar_chart",
+          "brief": "四样货品求平均价，得多少元？",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-8-5",
+          "kp_id": "g4_bar_chart",
+          "brief": "总数除以份数，平均每样多少钱？",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-8-6",
+          "kp_id": "g4_bar_chart",
+          "brief": "四样货品的平均价格是多少元？",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-8-7",
+          "kp_id": "g4_bar_chart",
+          "brief": "五样货品求平均，先算总价。",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-8-8",
+          "kp_id": "g5_line_chart",
+          "brief": "五样价格相差较大，平均数多少？",
+          "data_hint": "menu"
+        },
+        {
+          "level_id": "silu-8-9",
+          "kp_id": "g6_pie_chart",
+          "brief": "先求总价再平均，保留两位小数。",
+          "data_hint": "menu"
+        }
+      ]
+    },
+    {
+      "stage": 9,
+      "name": "比价",
+      "theme": "同一批货，换一家买结果不同",
+      "role_focus": "老掌柜",
+      "grade_hint": 6,
+      "op_family": "discount",
+      "data_hint": "coupons",
+      "levels": [
+        {
+          "level_id": "silu-9-1",
+          "kp_id": "g6_percent",
+          "brief": "两家货栈优惠不同，实付最少多少元？",
+          "data_hint": "coupons"
+        },
+        {
+          "level_id": "silu-9-2",
+          "kp_id": "g6_percent",
+          "brief": "先看总价够不够门槛，再算实付。",
+          "data_hint": "coupons"
+        },
+        {
+          "level_id": "silu-9-3",
+          "kp_id": "g6_percent",
+          "brief": "满减之后要付多少元？",
+          "data_hint": "coupons"
+        },
+        {
+          "level_id": "silu-9-4",
+          "kp_id": "g6_percent",
+          "brief": "两种优惠挑一种，实付最少多少元？",
+          "data_hint": "coupons"
+        },
+        {
+          "level_id": "silu-9-5",
+          "kp_id": "g6_ratio",
+          "brief": "比较两种优惠后的金额，取较少者。",
+          "data_hint": "coupons"
+        },
+        {
+          "level_id": "silu-9-6",
+          "kp_id": "g6_ratio",
+          "brief": "总价减去优惠面额，实付多少元？",
+          "data_hint": "coupons"
+        },
+        {
+          "level_id": "silu-9-7",
+          "kp_id": "g6_percent",
+          "brief": "先判断哪种优惠可用，再算实付。",
+          "data_hint": "coupons"
+        },
+        {
+          "level_id": "silu-9-8",
+          "kp_id": "g6_fraction_muldiv",
+          "brief": "门槛达到才可用，实付最少多少元？",
+          "data_hint": "coupons"
+        },
+        {
+          "level_id": "silu-9-9",
+          "kp_id": "g6_percent",
+          "brief": "按实付最少的方案，需要多少钱？",
+          "data_hint": "coupons"
+        }
+      ]
+    }
+  ],
+  "compliance_note": "题目只使用学习必需的餐品数量，不鼓励额外购买；每道题讲解结尾提示：适量、均衡搭配，不浪费。"
+}

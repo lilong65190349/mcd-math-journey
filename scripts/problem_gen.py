@@ -2,13 +2,23 @@
 
 职责
 ----
-1. 读取 ``data/curriculum.json``（知识点图谱）与 ``data/journey.json``（九关八十一难）。
+1. 读取 ``data/curriculum.json``（知识点图谱）与 ``data/storylines/``（故事线注册表 + 每条线的九关八十一难）。
 2. 通过 :mod:`data_source` 取真实餐品数据（MCP → 缓存 → 示例快照）。
 3. 用 9 个题型模板把真实数据变成小学 3-6 年级的应用题。
 4. 每题给三级递进提示（**任何一级都不直接给出最终答案**）。
 
+多故事线设计（重要）
+--------------------
+9 个数学模板**只按「第几关」索引**，故事线只提供关名 / 主题 / 角色 / brief 文案，
+数学逻辑与故事题材完全解耦：新增一条线只需在 ``data/storylines/index.json`` 注册并给一份
+同构 JSON，出题、校验、讲解、错题本全部自动复用。
+
+``level_id`` 的格式约定：
+* 默认线（西游记）保持历史格式 ``1-1`` … ``9-9``，向后兼容所有文档示例；
+* 其他线用 ``<story>-<stage>-<difficulty>``，如 ``sanguo-3-2``。
+
 题目结构见 :func:`generate` 的返回注释，字段名在整个项目里保持一致：
-``level_id`` / ``kp_id`` / ``stage`` / ``answer`` / ``verify`` / ``data_source``。
+``story`` / ``level_id`` / ``kp_id`` / ``stage`` / ``answer`` / ``verify`` / ``data_source``。
 """
 
 from __future__ import annotations
@@ -30,7 +40,11 @@ import data_source  # noqa: E402
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 CURRICULUM_PATH: Path = PROJECT_ROOT / "data" / "curriculum.json"
-JOURNEY_PATH: Path = PROJECT_ROOT / "data" / "journey.json"
+STORYLINES_DIR: Path = PROJECT_ROOT / "data" / "storylines"
+REGISTRY_PATH: Path = STORYLINES_DIR / "index.json"
+
+DEFAULT_STORY: str = "xiyou"
+"""未指定 ``--story`` 时使用的故事线（与改造前行为一致）。"""
 
 CARE_NOTE: str = "适量、均衡搭配，不浪费。"
 """每道题讲解结尾的统一轻提示（合规要求）。"""
@@ -70,6 +84,8 @@ _FALLBACK_POINTS: List[Dict[str, Any]] = [
 ]
 
 _STATE: Optional[Dict[str, Any]] = None
+_REGISTRY: Optional[Dict[str, Any]] = None
+_STORY_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -190,8 +206,15 @@ def _norm_calendar(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return {"name": name or "活动期", "start": start, "end": end}
 
 
-def load_state(force: bool = False) -> Dict[str, Any]:
-    """装载并缓存全部数据（进程内只取一次，避免重复网络请求）。"""
+def load_state(force: bool = False, story: str = DEFAULT_STORY) -> Dict[str, Any]:
+    """装载并缓存全部数据（进程内只取一次，避免重复网络请求）。
+
+    Args:
+        force: 强制重新抓取（忽略进程内缓存）。
+        story: 故事线 id。真实餐品数据与故事线无关，这里接受该参数只为接口对称，
+            调用方不必为了换故事线而重新取数。
+    """
+    del story  # 数据与题材解耦，取数逻辑不随故事线变化
     global _STATE
     if _STATE is not None and not force:
         return _STATE
@@ -272,10 +295,118 @@ def load_curriculum() -> Dict[str, Any]:
         return json.load(handle)
 
 
-def load_journey() -> Dict[str, Any]:
-    """读取关卡配置。"""
-    with JOURNEY_PATH.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+# ---------------------------------------------------------------------------
+# 故事线注册表
+# ---------------------------------------------------------------------------
+
+
+def load_registry(force: bool = False) -> Dict[str, Any]:
+    """读取 ``data/storylines/index.json``（故事线注册表）。"""
+    global _REGISTRY
+    if _REGISTRY is not None and not force:
+        return _REGISTRY
+    with REGISTRY_PATH.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload.get("storylines"), list) or not payload["storylines"]:
+        raise ValueError(f"故事线注册表格式异常：{REGISTRY_PATH}")
+    _REGISTRY = payload
+    return payload
+
+
+def list_storylines(only_available: bool = True) -> List[Dict[str, Any]]:
+    """列出故事线。
+
+    Args:
+        only_available: 只返回 ``available: true`` 的线（上线口径，CLI 与 demo 都用这个）。
+
+    Returns:
+        每项含 ``id`` / ``name`` / ``subtitle`` / ``available`` / ``file`` / ``era_note``。
+    """
+    items: List[Dict[str, Any]] = []
+    for entry in load_registry().get("storylines", []):
+        available = bool(entry.get("available"))
+        if only_available and not available:
+            continue
+        items.append(
+            {
+                "id": str(entry.get("id")),
+                "name": str(entry.get("name") or entry.get("id")),
+                "subtitle": str(entry.get("subtitle") or ""),
+                "available": available,
+                "file": str(entry.get("file") or f"{entry.get('id')}.json"),
+                "era_note": str(entry.get("era_note") or ""),
+            }
+        )
+    return items
+
+
+def story_ids(only_available: bool = True) -> List[str]:
+    """返回故事线 id 列表（默认只含已上线的线）。"""
+    return [item["id"] for item in list_storylines(only_available=only_available)]
+
+
+def default_story() -> str:
+    """返回默认故事线 id；注册表里的 default 若未上线，则退化为第一条可用线。"""
+    ids = story_ids(only_available=True)
+    wanted = str(load_registry().get("default") or DEFAULT_STORY)
+    if wanted in ids:
+        return wanted
+    return ids[0] if ids else DEFAULT_STORY
+
+
+def _registry_entry(story_id: str) -> Dict[str, Any]:
+    """按 id 取注册表条目；未注册则抛 :class:`KeyError`。"""
+    for entry in load_registry().get("storylines", []):
+        if str(entry.get("id")) == str(story_id):
+            return entry
+    raise KeyError(
+        f"未注册的故事线 {story_id!r}，可用：{'、'.join(story_ids(only_available=False))}。"
+    )
+
+
+def is_available(story_id: str) -> bool:
+    """该故事线是否已上线（``available: true``）。"""
+    try:
+        return bool(_registry_entry(story_id).get("available"))
+    except KeyError:
+        return False
+
+
+def load_storyline(story_id: Optional[str] = None) -> Dict[str, Any]:
+    """读取某条故事线的九关配置（进程内缓存）。
+
+    Args:
+        story_id: 故事线 id；``None`` 表示默认线。
+
+    Returns:
+        故事线 JSON（含 ``id`` / ``name`` / ``subtitle`` / ``era_note`` / ``roles`` / ``stages``）。
+
+    Raises:
+        KeyError: 未注册的故事线。
+    """
+    sid = str(story_id or default_story())
+    if sid in _STORY_CACHE:
+        return _STORY_CACHE[sid]
+    entry = _registry_entry(sid)
+    path = STORYLINES_DIR / str(entry.get("file") or f"{sid}.json")
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    payload.setdefault("id", sid)
+    payload.setdefault("name", entry.get("name") or sid)
+    payload.setdefault("subtitle", entry.get("subtitle") or "")
+    payload.setdefault("era_note", entry.get("era_note") or "")
+    payload.setdefault("roles", {})
+    _STORY_CACHE[sid] = payload
+    return payload
+
+
+def storyline_name(story_id: Optional[str] = None) -> str:
+    """返回故事线中文名（取不到时退化为 id）。"""
+    sid = str(story_id or default_story())
+    try:
+        return str(load_storyline(sid).get("name") or sid)
+    except (KeyError, OSError, json.JSONDecodeError):
+        return sid
 
 
 def kp_index() -> Dict[str, Dict[str, Any]]:
@@ -293,12 +424,20 @@ def kp_index() -> Dict[str, Dict[str, Any]]:
     return index
 
 
-def list_stages() -> List[Dict[str, Any]]:
-    """列出九个关卡（含每一难的元数据）。"""
+def list_stages(story: Optional[str] = None) -> List[Dict[str, Any]]:
+    """列出某条故事线的九个关卡（含每一难的元数据）。
+
+    Args:
+        story: 故事线 id；``None`` 表示默认线。
+    """
+    data = load_storyline(story)
+    sid = str(data.get("id"))
     stages: List[Dict[str, Any]] = []
-    for stage in load_journey().get("stages", []):
+    for stage in data.get("stages", []):
         stages.append(
             {
+                "story": sid,
+                "story_name": str(data.get("name") or sid),
                 "stage": int(stage.get("stage", 0)),
                 "name": str(stage.get("name", "")),
                 "theme": str(stage.get("theme", "")),
@@ -320,27 +459,82 @@ def list_stages() -> List[Dict[str, Any]]:
     return stages
 
 
-def get_level(level_id: str) -> Dict[str, Any]:
-    """按 ``level_id`` 取出「关卡 + 这一难」的合并信息。
+def _find_level(level_id: str, story: str) -> Optional[Tuple[Dict[str, Any], Dict[str, Any]]]:
+    """在指定故事线里按 ``level_id`` 找「关卡 + 这一难」。"""
+    for stage in load_storyline(story).get("stages", []):
+        for level in stage.get("levels", []):
+            if str(level.get("level_id")) == str(level_id):
+                return stage, level
+    return None
+
+
+def resolve_level(
+    level_id: str, story: Optional[str] = None
+) -> Tuple[str, Tuple[Dict[str, Any], Dict[str, Any]]]:
+    """跨故事线定位关卡。
+
+    规则：
+    * 显式给了 ``story``：先在该线里找 ``level_id``；找不到时再试 ``<story>-<level_id>``
+      （这样 ``--story sanguo --level 3-2`` 这种简写也能用）。
+    * 没给 ``story``：先在默认线（西游记）里找，再按注册顺序扫其他已上线的线，
+      因此 ``3-2`` 仍指向西游记第 3 关第 2 难（完全向后兼容），
+      而 ``sanguo-3-2`` 能自动定位到三国线。
+
+    Returns:
+        ``(story_id, (stage, level))``。
+
+    Raises:
+        KeyError: 关卡不存在。
+    """
+    text = str(level_id)
+    if story:
+        sid = str(story)
+        found = _find_level(text, sid)
+        if found:
+            return sid, found
+        found = _find_level(f"{sid}-{text}", sid)
+        if found:
+            return sid, found
+        raise KeyError(
+            f"在故事线「{storyline_name(sid)}」里未找到关卡 {level_id!r}，"
+            f"可用关卡形如 {sid}-1-1 … {sid}-9-9。"
+        )
+
+    order = [default_story()] + [sid for sid in story_ids(True) if sid != default_story()]
+    for sid in order:
+        found = _find_level(text, sid)
+        if found:
+            return sid, found
+    raise KeyError(
+        f"未找到关卡 {level_id!r}，可用关卡形如 1-1 … 9-9（西游记）或 sanguo-3-2（其他故事线）。"
+    )
+
+
+def get_level(level_id: str, story: Optional[str] = None) -> Dict[str, Any]:
+    """按 ``level_id`` 取出「关卡 + 这一难」的合并信息（支持跨故事线）。
+
+    Args:
+        level_id: ``1-1`` 这类默认线关卡号，或 ``sanguo-3-2`` 这类带线前缀的关卡号。
+        story: 限定在某条线里查；``None`` 时按 :func:`resolve_level` 的规则自动定位。
 
     Raises:
         KeyError: 关卡号不存在。
     """
-    for stage in load_journey().get("stages", []):
-        for level in stage.get("levels", []):
-            if str(level.get("level_id")) == str(level_id):
-                merged = dict(level)
-                merged.update(
-                    {
-                        "stage": int(stage.get("stage", 0)),
-                        "stage_name": str(stage.get("name", "")),
-                        "theme": str(stage.get("theme", "")),
-                        "role_focus": str(stage.get("role_focus", "")),
-                        "grade_hint": int(stage.get("grade_hint", 0)),
-                    }
-                )
-                return merged
-    raise KeyError(f"未找到关卡 {level_id!r}，可用关卡形如 1-1 … 9-9。")
+    sid, (stage, level) = resolve_level(level_id, story)
+    data = load_storyline(sid)
+    merged = dict(level)
+    merged.update(
+        {
+            "story": sid,
+            "story_name": str(data.get("name") or sid),
+            "stage": int(stage.get("stage", 0)),
+            "stage_name": str(stage.get("name", "")),
+            "theme": str(stage.get("theme", "")),
+            "role_focus": str(stage.get("role_focus", "")),
+            "grade_hint": int(stage.get("grade_hint", 0)),
+        }
+    )
+    return merged
 
 
 # ---------------------------------------------------------------------------
@@ -349,11 +543,17 @@ def get_level(level_id: str) -> Dict[str, Any]:
 
 
 def _ctx(level: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
-    """组装模板上下文。"""
+    """组装模板上下文。
+
+    难度取 ``level_id`` 的**最后一段**：``3-2`` 与 ``sanguo-3-2`` 都解析成 2，
+    这样同一套数学模板对任何故事线都成立。
+    """
     state = load_state()
     level_id = str(level.get("level_id", "1-1"))
-    parts = level_id.split("-")
-    difficulty = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+    tail = level_id.split("-")[-1]
+    difficulty = int(tail) if tail.isdigit() else 1
+    story_id = str(level.get("story") or default_story())
+    roles = load_storyline(story_id).get("roles") or {}
     return {
         "state": state,
         "foods": state["foods"],
@@ -367,8 +567,11 @@ def _ctx(level: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
         "level": level,
         "rng": rng,
         "difficulty": max(1, min(9, difficulty)),
-        "role": str(level.get("role_focus", "唐僧")),
-        "stage_name": str(level.get("stage_name", "取经路上")),
+        # 角色一律从故事线 JSON 读，代码里不再硬编码任何人物名。
+        "role": str(level.get("role_focus") or roles.get("review") or "领队"),
+        "stage_name": str(level.get("stage_name") or "路上"),
+        "story": story_id,
+        "story_name": str(level.get("story_name") or storyline_name(story_id)),
     }
 
 
@@ -1040,23 +1243,27 @@ def generate(
     kp_id: Optional[str] = None,
     grade: Optional[int] = None,
     salt: Any = None,
+    story: Optional[str] = None,
 ) -> Dict[str, Any]:
     """生成一道题。
 
     Args:
-        level_id: 指定关卡（如 ``"3-2"``）；不指定则随机。
+        level_id: 指定关卡（如 ``"3-2"``，或跨线写法 ``"sanguo-3-2"``）；不指定则在该线内随机。
         kp_id: 按知识点筛选。
         grade: 按年级筛选（3-6）；口径是**知识点所属年级**，与返回值的 ``grade`` 字段同源。
         salt: 随机种子；给定相同 ``salt`` 与相同参数可复现同一道题。
+        story: 故事线 id，默认 ``xiyou``。只影响关名 / 主题 / 角色 / brief 文案，
+            9 个数学模板完全复用，数字与算式与故事线无关。
 
     Returns:
         题目字典::
 
             {
+              "story_id": "xiyou", "story_name": "西游记",
               "level_id": "3-2", "stage": 3, "stage_name": "八戒买饼",
               "kp_id": "g3_mul_basic", "kp_name": "两位数乘一位数",
               "grade": 3, "stage_grade_hint": 3, "role": "猪八戒",
-              "story": "...", "question": "...",
+              "story": "（情境叙述文本）", "question": "...",
               "data_table": {"title": "今日菜单（实时数据）", "columns": [...], "rows": [...]},
               "answer_type": "number", "answer": "76.50", "unit": "元",
               "hints": ["...", "...", "..."], "steps": ["...", "..."],
@@ -1069,17 +1276,28 @@ def generate(
         ``data_source`` 决定：实时数据 / 缓存数据 YYYY-MM-DD / 示例数据。
 
     Raises:
-        ValueError: 筛选条件下没有任何关卡。
+        ValueError: 筛选条件下没有任何关卡，或指定的故事线尚未上线。
         KeyError: 指定的 ``level_id`` 不存在。
     """
+    if story is not None and not is_available(story):
+        raise ValueError(f"故事线「{storyline_name(story)}」（{story}）尚未上线，请换一条线。")
+
     candidates: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
-    for stage in load_journey().get("stages", []):
-        for level in stage.get("levels", []):
-            if level_id is not None and str(level.get("level_id")) != str(level_id):
-                continue
-            if kp_id is not None and str(level.get("kp_id")) != str(kp_id):
-                continue
-            candidates.append((stage, level))
+    if level_id is not None:
+        sid, resolved = resolve_level(level_id, story)
+        candidates = [resolved]
+    else:
+        sid = str(story or default_story())
+        for stage in load_storyline(sid).get("stages", []):
+            for level in stage.get("levels", []):
+                candidates.append((stage, level))
+
+    if kp_id is not None:
+        candidates = [
+            (stage, level)
+            for stage, level in candidates
+            if str(level.get("kp_id")) == str(kp_id)
+        ]
 
     kp_map = kp_index()
     if grade is not None:
@@ -1103,13 +1321,16 @@ def generate(
     rng = random.Random(base_seed)
     stage, level = rng.choice(candidates)
 
+    story_data = load_storyline(sid)
     merged = dict(level)
     merged.update(
         {
+            "story": sid,
+            "story_name": str(story_data.get("name") or sid),
             "stage": int(stage.get("stage", 0)),
             "stage_name": str(stage.get("name", "")),
             "theme": str(stage.get("theme", "")),
-            "role_focus": str(stage.get("role_focus", "唐僧")),
+            "role_focus": str(stage.get("role_focus", "")),
             "grade_hint": int(stage.get("grade_hint", 0)),
         }
     )
@@ -1156,6 +1377,11 @@ def generate(
     data_table["title"] = _table_title(str(data_table.get("title", "")), source_value, source_fetched)
 
     problem: Dict[str, Any] = {
+        # 题材元信息：``story_id`` 是故事线 id，``story_name`` 是中文名。
+        # 注意 ``story`` 这个键在本项目里一直是「题目情境叙述文本」（见 SKILL.md 字段表），
+        # 为保持向后兼容不改变其含义，故事线标识改用 story_id。
+        "story_id": sid,
+        "story_name": str(story_data.get("name") or sid),
         "level_id": str(merged.get("level_id")),
         "stage": int(stage.get("stage", 0)),
         "stage_name": str(stage.get("name", "")),
@@ -1185,6 +1411,8 @@ def render_text(problem: Dict[str, Any]) -> str:
     lines: List[str] = []
     lines.append(f"【第 {problem['level_id']} 难】{problem['stage_name']} · "
                  f"第 {problem['stage']} 关")
+    if problem.get("story_name"):
+        lines.append(f"故事线：{problem['story_name']}")
     lines.append(f"年级：{problem['grade']} 年级　知识点：{problem['kp_name']}（{problem['kp_id']}）")
     lines.append("-" * 60)
     lines.append(problem["story"])

@@ -1,0 +1,47 @@
+{
+  "version": "1.0.0",
+  "default": "xiyou",
+  "note": "故事线注册表。available=false 的线路不上线：CLI 的 stages / stories 不列出、demo 不显示、出题不注册。新增一条线只需在这里加一项，数学模板完全复用。",
+  "storylines": [
+    {
+      "id": "xiyou",
+      "name": "西游记",
+      "subtitle": "八十一难取真经",
+      "available": true,
+      "file": "xiyou.json",
+      "era_note": "取材于《西游记》原著（公有领域）"
+    },
+    {
+      "id": "sanguo",
+      "name": "三国演义",
+      "subtitle": "群雄逐鹿，借箭分兵",
+      "available": true,
+      "file": "sanguo.json",
+      "era_note": "取材于《三国演义》原著（公有领域）"
+    },
+    {
+      "id": "silu",
+      "name": "丝路商队",
+      "subtitle": "驼铃西去，账目分明",
+      "available": true,
+      "file": "silu.json",
+      "era_note": "取材于古代丝绸之路商旅活动的历史常识（长安、敦煌、疏勒、撒马尔罕等古地名）"
+    },
+    {
+      "id": "zhenghe",
+      "name": "郑和下西洋",
+      "subtitle": "宝船远航，补给有数",
+      "available": true,
+      "file": "zhenghe.json",
+      "era_note": "取材于郑和下西洋的史料记载（历史事实，公有领域）"
+    },
+    {
+      "id": "shuihu",
+      "name": "水浒传",
+      "subtitle": "聚义分粮，账目公平",
+      "available": true,
+      "file": "shuihu.json",
+      "era_note": "取材于《水浒传》原著（公有领域）"
+    }
+  ]
+}

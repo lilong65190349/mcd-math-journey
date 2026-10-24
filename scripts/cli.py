@@ -2,13 +2,17 @@
 
 用法::
 
-    python scripts/cli.py stages                 # 列出 9 关与通关状态
-    python scripts/cli.py play --level 3-2       # 玩一关
+    python scripts/cli.py stories                # 列出全部故事线（可插拔注册表）
+    python scripts/cli.py stages                 # 列出所有线的关名摘要
+    python scripts/cli.py stages --story sanguo  # 列出某条线的 9 关与通关状态
+    python scripts/cli.py play --level 3-2       # 玩一关（默认西游记）
+    python scripts/cli.py play --story sanguo --level sanguo-3-2
     python scripts/cli.py play --grade 4 --count 5
-    python scripts/cli.py wrongbook              # 错题本
+    python scripts/cli.py wrongbook              # 错题本（全量，标注来源线）
     python scripts/cli.py report                 # 家长周报
     python scripts/cli.py doctor                 # 环境自检
 
+``--story`` 省略时一律使用注册表里的默认线（``xiyou``），行为与改造前完全一致。
 没有 ``MCD_MCP_TOKEN`` 时也能完整跑通：数据会自动降级到本地缓存或示例快照，
 并在开头明确告知当前数据级别。
 """
@@ -76,22 +80,38 @@ def _source_banner(source: str) -> str:
     return f"数据级别：{label} —— 未配置 MCP 令牌或网络不通，实际运行会替换为实时数据。"
 
 
-def _render_stage_map() -> str:
-    """渲染九关地图（含通关状态）。"""
-    clears = progress.get_stage_clears()
+def _stage_key(story_id: str, stage: int) -> str:
+    """通关记录的键：默认线沿用 ``"3"``（兼容老库），其他线用 ``"sanguo-3"``。
+
+    ``stage_clear`` 的主键是 ``level_id``，如果五条线都用 ``"3"`` 会互相覆盖，
+    所以非默认线必须带线前缀。
+    """
+    if str(story_id) == problem_gen.default_story():
+        return str(int(stage))
+    return f"{story_id}-{int(stage)}"
+
+
+def _render_stage_map(story: Optional[str] = None) -> str:
+    """渲染某条故事线的九关地图（含通关状态）。"""
+    sid = str(story or problem_gen.default_story())
+    data = problem_gen.load_storyline(sid)
+    clears = progress.get_stage_clears(sid)
+    cleared_count = len(clears)
     lines: List[str] = []
     lines.append(_rule("═"))
-    lines.append("  麦麦取经录 · 九关八十一难")
+    lines.append(f"  {data.get('name', sid)} · 九关八十一难")
+    if data.get("subtitle"):
+        lines.append(f"  {data['subtitle']}　｜　故事线 id：{sid}")
     lines.append("  题目里的数字都是真的，答案由麦当劳 MCP 真实计算校验")
     lines.append(_rule("═"))
-    for stage in problem_gen.list_stages():
-        key = str(stage["stage"])
+    for stage in problem_gen.list_stages(sid):
+        key = _stage_key(sid, stage["stage"])
         cleared = clears.get(key)
         if cleared:
             mark = "★" * int(cleared["stars"]) + "☆" * (3 - int(cleared["stars"]))
             status = f"已通关 {mark}"
         else:
-            stats = progress.stage_accuracy(stage["stage"])
+            stats = progress.stage_accuracy(stage["stage"], sid)
             if stats["attempts"]:
                 status = f"进行中（{stats['correct_levels']}/{stage['level_count']} 难已答对）"
             else:
@@ -102,7 +122,42 @@ def _render_stage_map() -> str:
         )
         lines.append(f"          主题：{stage['theme']}")
     lines.append(_rule("═"))
-    lines.append("  用法：python scripts/cli.py play --level 3-2")
+    lines.append(f"  已通关 {cleared_count}/9 关　｜　故事线：{data.get('name', sid)}（{sid}）")
+    if sid == problem_gen.default_story():
+        lines.append("  用法：python scripts/cli.py play --level 3-2")
+    else:
+        lines.append(f"  用法：python scripts/cli.py play --story {sid} --level {sid}-3-2")
+    lines.append(f"  {DISCLAIMER}")
+    return "\n".join(lines)
+
+
+def _render_story_overview() -> str:
+    """渲染所有已上线故事线的摘要（每条线一行 + 关名一行）。"""
+    items = problem_gen.list_storylines(only_available=True)
+    default_id = problem_gen.default_story()
+    lines: List[str] = []
+    lines.append(_rule("═"))
+    lines.append("  麦麦取经录 · 故事线总览")
+    lines.append("  题目里的数字都是真的，答案由麦当劳 MCP 真实计算校验")
+    lines.append(_rule("═"))
+    names = {item["id"]: item["name"] for item in items}
+    lines.append(
+        f"  可用故事线 {len(items)} 条（默认 {names.get(default_id, default_id)} / {default_id}）"
+    )
+    lines.append("  所有线共用同一套 9 个题型模板，只换关名、角色与题面文案；数学逻辑完全一致。")
+    lines.append("")
+    for item in items:
+        stages = problem_gen.list_stages(item["id"])
+        level_count = sum(int(stage["level_count"]) for stage in stages)
+        cleared = len(progress.get_stage_clears(item["id"]))
+        lines.append(
+            f"  {_pad(item['name'], 12)}{_pad(item['id'], 10)}"
+            f"{len(stages)} 关 / {level_count} 难　已通关 {cleared}/{len(stages)}"
+        )
+        lines.append("      " + " · ".join(str(stage["name"]) for stage in stages))
+    lines.append(_rule("═"))
+    lines.append("  用法：python scripts/cli.py stages --story sanguo")
+    lines.append("        python scripts/cli.py play --story sanguo --level sanguo-3-2")
     lines.append(f"  {DISCLAIMER}")
     return "\n".join(lines)
 
@@ -115,11 +170,14 @@ def _print_problem(problem: Dict[str, Any]) -> None:
     """
     print()
     print(_rule("═"))
-    print(f"  第 {problem['stage']} 关 · {problem['stage_name']}　第 {problem['level_id'].split('-')[1]} 难")
+    difficulty = str(problem["level_id"]).split("-")[-1]
+    print(f"  第 {problem['stage']} 关 · {problem['stage_name']}　第 {difficulty} 难")
     print(
         f"  年级：{problem['grade']} 年级（知识点所属）"
         f"｜所属关：第 {problem['stage']} 关 {problem['stage_name']}"
     )
+    if problem.get("story_id") and problem["story_id"] != problem_gen.default_story():
+        print(f"  故事线：{problem.get('story_name', '')}（{problem['story_id']}）")
     print(f"  知识点：{problem['kp_name']}")
     print(f"  {_source_banner(problem['data_source'])}")
     print(_rule("─"))
@@ -160,9 +218,36 @@ def _print_result(result: Dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def cmd_stages(_: argparse.Namespace) -> int:
-    """列出九关与通关状态。"""
-    print(_render_stage_map())
+def cmd_stages(args: argparse.Namespace) -> int:
+    """列出关卡：不传 --story 时给出所有线的摘要，传了则给该线 9 关详情。"""
+    story = getattr(args, "story", None)
+    print(_render_stage_map(story) if story else _render_story_overview())
+    return 0
+
+
+def cmd_stories(_: argparse.Namespace) -> int:
+    """列出故事线注册表（含未上线的线）。"""
+    print()
+    print(_rule("═"))
+    print("  故事线列表（data/storylines/index.json）")
+    print(_rule("═"))
+    for item in problem_gen.list_storylines(only_available=False):
+        stages = problem_gen.list_stages(item["id"]) if item["available"] else []
+        level_count = sum(int(stage["level_count"]) for stage in stages)
+        status = "已上线" if item["available"] else "未上线（不注册）"
+        print(
+            f"  {_pad(item['id'], 10)}{_pad(item['name'], 12)}"
+            f"{_pad(f'{len(stages)} 关 / {level_count} 难', 14)}{status}"
+        )
+        if item["subtitle"]:
+            print(f"      {item['subtitle']}")
+    print(_rule("═"))
+    default_id = problem_gen.default_story()
+    print(f"  默认故事线：{problem_gen.storyline_name(default_id)}（{default_id}）")
+    lines_available = "、".join(problem_gen.story_ids(only_available=True))
+    print(f"  可用：{lines_available}")
+    print("  说明：available=false 的线不会出现在 stages / demo 里，也不会被出题注册。")
+    print(f"  {DISCLAIMER}")
     return 0
 
 
@@ -170,10 +255,12 @@ def cmd_play(args: argparse.Namespace) -> int:
     """交互式答题。"""
     count = max(1, int(args.count))
     level_id: Optional[str] = args.level
+    story = getattr(args, "story", None)
+    sid = str(story or problem_gen.default_story())
     problems: List[Dict[str, Any]] = []
 
     if level_id:
-        problems.append(problem_gen.generate(level_id=level_id, salt=args.seed))
+        problems.append(problem_gen.generate(level_id=level_id, salt=args.seed, story=story))
     else:
         for index in range(count):
             problems.append(
@@ -181,6 +268,7 @@ def cmd_play(args: argparse.Namespace) -> int:
                     grade=args.grade,
                     kp_id=args.kp,
                     salt=None if args.seed is None else f"{args.seed}-{index}",
+                    story=sid,
                 )
             )
 
@@ -229,6 +317,7 @@ def cmd_play(args: argparse.Namespace) -> int:
                 expected=result["expected"],
                 correct=bool(result["correct"]),
                 verify_source=str(result["verify_source"]),
+                story=str(problem.get("story_id") or problem_gen.default_story()),
             )
             if result["correct"]:
                 print()
@@ -246,9 +335,16 @@ def cmd_play(args: argparse.Namespace) -> int:
         print(verify.explain(problem))
         print()
 
-        stats = progress.stage_accuracy(problem["stage"])
+        stats = progress.stage_accuracy(
+            problem["stage"], str(problem.get("story_id") or problem_gen.default_story())
+        )
         if answered_correctly and stats["correct_levels"] >= 9:
-            stars = progress.clear_stage(str(problem["stage"]), stats["accuracy"])
+            story_id = str(problem.get("story_id") or problem_gen.default_story())
+            stars = progress.clear_stage(
+                _stage_key(story_id, problem["stage"]),
+                stats["accuracy"],
+                story=story_id,
+            )
             print(f"  第 {problem['stage']} 关通关！获得 {'★' * stars}{'☆' * (3 - stars)}")
         print(_rule("═"))
 
@@ -259,19 +355,35 @@ def cmd_play(args: argparse.Namespace) -> int:
 
 def cmd_wrongbook(args: argparse.Namespace) -> int:
     """打印错题本。"""
-    entries = progress.get_wrong_book(args.kp)
+    story = getattr(args, "story", None)
+    entries = progress.get_wrong_book(args.kp, story=story)
     names = {key: value["name"] for key, value in problem_gen.kp_index().items()}
     print()
     print(_rule("═"))
     print("  错题本")
     print(_rule("═"))
+    if story:
+        print(f"  故事线：{problem_gen.storyline_name(story)}（{story}）")
+    else:
+        counts: Dict[str, int] = {}
+        for entry in entries:
+            counts[entry["story"]] = counts.get(entry["story"], 0) + 1
+        summary = "、".join(
+            f"{problem_gen.storyline_name(sid)} {count} 条"
+            for sid, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        )
+        print(f"  故事线：全部{('（' + summary + '）') if summary else ''}")
     if not entries:
         print("  还没有错题记录。先玩一关吧：python scripts/cli.py play --level 1-1")
     else:
+        default_id = problem_gen.default_story()
         for entry in entries:
+            # 已按 --story 过滤时不再重复标注来源线；全量汇总时才加括号说明。
+            show_marker = not story and entry["story"] != default_id
+            marker = f"　（{problem_gen.storyline_name(entry['story'])}）" if show_marker else ""
             print(
                 f"  第 {entry['level_id']} 难　{names.get(entry['kp_id'], entry['kp_id'])}"
-                f"　错过 {entry['wrong_count']} 次　最近 {entry['last_time']}"
+                f"　错过 {entry['wrong_count']} 次　最近 {entry['last_time']}{marker}"
             )
             print(f"      上次作答：{entry['last_answer'] or '（空）'}　参考答案：{entry['expected']}")
     print(_rule("═"))
@@ -281,7 +393,7 @@ def cmd_wrongbook(args: argparse.Namespace) -> int:
 def cmd_report(args: argparse.Namespace) -> int:
     """打印家长周报。"""
     print()
-    print(progress.weekly_report(days=args.days))
+    print(progress.weekly_report(days=args.days, story=getattr(args, "story", None)))
     return 0
 
 
@@ -338,6 +450,14 @@ def cmd_doctor(_: argparse.Namespace) -> int:
     except Exception as exc:  # pragma: no cover - 自检要吞掉异常
         print(f"  进度数据库：不可写 —— {exc}")
 
+    available = problem_gen.list_storylines(only_available=True)
+    all_lines = problem_gen.list_storylines(only_available=False)
+    print(
+        f"  故事线：已注册 {len(all_lines)} 条，可用 {len(available)} 条"
+        f"（{'、'.join(item['id'] for item in available)}）"
+    )
+    print(f"    默认故事线：{problem_gen.storyline_name()}（{problem_gen.default_story()}）")
+
     print()
     print("  数据源当前级别：")
     for name, info in data_source.status().items():
@@ -354,18 +474,33 @@ def cmd_doctor(_: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """构造参数解析器。"""
+    """构造参数解析器。
+
+    ``--story`` 的可选值从 ``data/storylines/index.json`` 动态读取（只列已上线的线），
+    默认 ``None`` 表示「没指定」：``stages`` 用它区分「总览」与「单线详情」，
+    其余子命令回落到注册表里的默认线（西游记），保证与改造前行为一致。
+    """
     parser = argparse.ArgumentParser(
         prog="cli.py",
         description="麦麦取经录：用麦当劳 MCP 真实数据出题、校验、讲解的小学数学闯关工具。",
     )
     sub = parser.add_subparsers(dest="command")
 
-    stages = sub.add_parser("stages", help="列出 9 关与通关状态")
+    stories_choices = problem_gen.story_ids(only_available=True)
+
+    def add_story(p: argparse.ArgumentParser, help_text: str) -> None:
+        p.add_argument("--story", default=None, choices=stories_choices, help=help_text)
+
+    stages = sub.add_parser("stages", help="列出关卡：不带 --story 给出所有线摘要，带则给单线 9 关")
+    add_story(stages, "只看某条故事线，如 sanguo；不填则汇总所有已上线线")
     stages.set_defaults(func=cmd_stages)
 
+    stories = sub.add_parser("stories", help="列出故事线注册表（含未上线）")
+    stories.set_defaults(func=cmd_stories)
+
     play = sub.add_parser("play", help="玩一关（出题 → 提示 → 作答 → 校验 → 讲解）")
-    play.add_argument("--level", default=None, help="关卡号，如 3-2；不填则随机")
+    add_story(play, f"选择故事线，默认 {problem_gen.default_story()}")
+    play.add_argument("--level", default=None, help="关卡号，如 3-2 或 sanguo-3-2；不填则随机")
     play.add_argument("--grade", type=int, default=None, choices=[3, 4, 5, 6], help="按年级随机出题")
     play.add_argument("--kp", default=None, help="按知识点出题，如 g3_mul_basic")
     play.add_argument("--count", type=int, default=1, help="连续出几题，默认 1")
@@ -373,10 +508,12 @@ def build_parser() -> argparse.ArgumentParser:
     play.set_defaults(func=cmd_play)
 
     wrongbook = sub.add_parser("wrongbook", help="查看错题本")
+    add_story(wrongbook, "只看某条故事线的错题；不填则全量汇总")
     wrongbook.add_argument("--kp", default=None, help="只看某个知识点")
     wrongbook.set_defaults(func=cmd_wrongbook)
 
     report = sub.add_parser("report", help="生成家长周报")
+    add_story(report, "只统计某条故事线；不填则全量汇总")
     report.add_argument("--days", type=int, default=7, help="统计最近多少天，默认 7")
     report.set_defaults(func=cmd_report)
 
