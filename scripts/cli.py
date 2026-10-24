@@ -910,7 +910,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--stage", type=int, default=None, choices=list(range(1, 10)), help="关号 1~9（闯关玩法）"
     )
     play.add_argument("--grade", type=int, default=None, choices=[3, 4, 5, 6], help="按年级随机出题")
-    play.add_argument("--kp", default=None, help="按知识点出题，如 g3_mul_basic")
+    play.add_argument("--kp", default=None, help="按知识点出题，如 g3_div_basic")
     play.add_argument("--count", type=int, default=1, help="连续出几题，默认 1")
     play.add_argument("--seed", default=None, help="随机种子，便于复现同一场/同一道题")
     play.set_defaults(func=cmd_play)

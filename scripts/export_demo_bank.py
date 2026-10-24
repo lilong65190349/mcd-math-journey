@@ -31,6 +31,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -99,9 +100,22 @@ def _meta(diagnosis: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _answer_number(problem: Dict[str, Any]) -> float:
-    """答案转成演示页比较用的数值（百分数只写数值，单位单独放 ``unit``）。"""
+    """答案转成演示页比较用的数值（百分数只写数值，单位单独放 ``unit``）。
+
+    分数答案（课标整改新增的 fraction 题型，如 ``6/19``）转成数值比较用；
+    原始文本另存在 ``answerText``，演示页按 ``answerType`` 走精确比较。
+    """
     text = str(problem.get("answer", "")).replace("%", "").strip()
-    return float(Decimal(text))
+    try:
+        return float(Decimal(text))
+    except InvalidOperation:
+        match = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)\s*$", text)
+        if not match:
+            raise
+        denominator = Decimal(match.group(2))
+        if denominator == 0:
+            raise ValueError("分数答案的分母不能为 0")
+        return float(Decimal(match.group(1)) / denominator)
 
 
 def project(problem: Dict[str, Any]) -> Dict[str, Any]:
@@ -124,6 +138,8 @@ def project(problem: Dict[str, Any]) -> Dict[str, Any]:
             "rows": [[str(cell) for cell in row] for row in table.get("rows") or []],
         },
         "answer": _answer_number(problem),
+        "answerText": str(problem.get("answer", "")),
+        "answerType": str(problem.get("answer_type") or "number"),
         "unit": str(problem["unit"]),
         "hints": [str(hint) for hint in problem["hints"]],
         "steps": steps,

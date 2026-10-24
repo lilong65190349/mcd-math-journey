@@ -27,6 +27,9 @@ import data_source  # noqa: E402
 TOLERANCE: Decimal = Decimal("0.01")
 """数值比较容差。"""
 
+FRACTION_TOLERANCE: Decimal = Decimal("0.000000001")
+"""分数答案的比较容差：等价分数（12/38 与 6/19）必须判对，近似小数（0.32）必须判错。"""
+
 CARE_NOTE: str = "适量、均衡搭配，不浪费。"
 
 DIAGNOSIS_LABELS: Dict[str, str] = {
@@ -234,6 +237,28 @@ def diagnose(problem: Dict[str, Any], user_answer: Any) -> str:
         grams = data_source.to_decimal(info.get("grams"))
         if abs(actual - grams) <= TOLERANCE:
             return "单位换算错误：这是总克数，题目要求用千克表示，还要除以 1000。"
+    if kind == "fraction_part":
+        part = data_source.to_decimal(info.get("part"))
+        whole = data_source.to_decimal(info.get("whole"))
+        if part != 0 and whole != 0 and abs(actual - (whole / part)) <= TOLERANCE:
+            return (
+                "数量关系错误：把「部分占整体」弄反了——求几分之几要用部分除以整体，"
+                "不是整体除以部分。"
+            )
+        if abs(actual - part) <= TOLERANCE:
+            return "漏用条件：你算出的是部分本身的克数，还要除以整体（两样合起来）才是几分之几。"
+        return (
+            "数量关系错误：求「占几分之几」要先写成分数（部分 ÷ 整体），"
+            "再约成最简分数，例如写成 12/38 的形式。"
+        )
+    if kind == "fraction_eat":
+        protein = data_source.to_decimal(info.get("protein"))
+        denom = data_source.to_decimal(info.get("denom"))
+        if abs(actual - protein) <= TOLERANCE:
+            return "漏用条件：还要除以平均分成的份数——每人只分到其中 1 份。"
+        if denom and abs(actual - protein * denom) <= TOLERANCE:
+            return "运算错误：这里应该用除法（平均分成几份取 1 份），不是用乘法。"
+        return "运算错误：先把总量平均分成几份，再取其中 1 份，用除法算一遍。"
 
     # 3) 运算错误 vs 漏用条件
     if expected != 0 and abs(delta) <= abs(expected) * Decimal("0.2"):
@@ -280,11 +305,17 @@ def check_answer(problem: Dict[str, Any], user_answer: Any) -> Dict[str, Any]:
             # 兼容把 19.6% 写成 0.196 的写法
             candidates.append(actual * Decimal("100"))
 
+    # 分数答案（课标整改新增的 fraction 题型）必须精确比较：
+    # 6/19 ≈ 0.3158，若沿用 0.01 的容差，孩子写 0.32 会被误判为正确。
+    # parse_answer 用 Decimal 除法解析，等价分数（12/38 与 6/19）会得到完全相同的值，
+    # 因此这里用极小容差既能判对等价分数，又能挡住"写近似小数蒙对"。
+    tolerance = FRACTION_TOLERANCE if answer_type == "fraction" else TOLERANCE
+
     delta = ""
     correct = False
     matched: Optional[Decimal] = None
     for value in candidates:
-        if abs(value - expected) <= TOLERANCE:
+        if abs(value - expected) <= tolerance:
             correct = True
             matched = value
             break

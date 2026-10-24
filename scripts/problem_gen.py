@@ -30,6 +30,7 @@ import sys
 import time
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from math import gcd
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -78,9 +79,21 @@ _FALLBACK_COUPONS: List[Dict[str, Any]] = [
 ]
 
 _FALLBACK_POINTS: List[Dict[str, Any]] = [
-    {"name": "巨无霸兑换券", "points": Decimal("1200")},
-    {"name": "中薯条兑换券", "points": Decimal("600")},
-    {"name": "麦咖啡拿铁券", "points": Decimal("800")},
+    # 课标对齐（2026-10-25 考据整改）：小学除法笔算的上限是「除数是两位数」
+    # （新人教四下；课标第二学段学业要求只到「能计算两位数乘除三位数」）。
+    # 真实积分商品点数普遍偏大（2026-10-24 缓存实测 50 条中仅 1 条为两位数，
+    # 一位除数商品为零），因此内置示例商品按除数位数分两组：
+    #   一位除数（4-1～4-5，三下「除数是一位数的除法」）
+    #   两位除数（4-6～4-9，四下「除数是两位数的除法」）
+    # 仅在真实池缺位时启用，题面会经 primary_source="fallback" 如实标注「（示例数据）」。
+    {"name": "苹果片兑换券", "points": Decimal("4")},
+    {"name": "小薯兑换券", "points": Decimal("6")},
+    {"name": "可乐(中)兑换券", "points": Decimal("8")},
+    {"name": "圆筒冰淇淋兑换券", "points": Decimal("9")},
+    {"name": "中薯条兑换券", "points": Decimal("12")},
+    {"name": "麦乐鸡(5块)兑换券", "points": Decimal("15")},
+    {"name": "巨无霸兑换券", "points": Decimal("25")},
+    {"name": "麦辣鸡腿堡兑换券", "points": Decimal("32")},
 ]
 
 _STATE: Optional[Dict[str, Any]] = None
@@ -758,17 +771,39 @@ def _stage_3_mul(ctx: Dict[str, Any]) -> Dict[str, Any]:
     total = price * qty
     int_part = int(price)
     frac_part = price - Decimal(int_part)
+    # 教学口径按难度分两段（2026-10-25 考据整改 P1-2）：
+    #   1-4 难 → g3_money「元角分」：先算元、再算角，最后合并；
+    #   5-9 难 → g5_decimal_muldiv「小数乘法」：先按整数算，再点小数点。
     if frac_part == 0:
         upper = (Decimal(int_part) + Decimal("1")) * qty
-        hint3 = (
+        range_hint = (
             f"先估一估范围：把单价往大看成 {int_part + 1} 元，{qty} 份也不会超过 {fmt_money(upper)} 元，"
             f"所以答案应当略小于这个数。"
         )
-    else:
-        hint3 = (
-            f"拆开算：整数部分 {int_part} × {qty} = {int_part * qty}；"
-            f"小数部分 {fmt_num(frac_part)} × {qty} = {fmt_num(frac_part * qty)}。"
+    elif ctx["difficulty"] <= 4:
+        jiao = int(frac_part * 100)
+        range_hint = (
+            f"拆开算：{int_part} 元 × {qty} = {int_part * qty} 元；"
+            f"{jiao} 角 × {qty} = {jiao * qty} 角，"
+            f"其中 {jiao * qty // 10} 元 {(jiao * qty) % 10} 角；两部分合起来就是答案。"
         )
+    else:
+        scaled = int(price * 100) * qty
+        range_hint = (
+            f"小数乘法先按整数算：把 {fmt_money(price)} 去掉小数点看成 {int(price * 100)}，"
+            f"{int(price * 100)} × {qty} = {scaled}，再把小数点点回两位，得 {fmt_money(total)}。"
+        )
+    if ctx["difficulty"] <= 4:
+        hint2 = f"{fmt_money(price)} × {qty} = □，注意结果要带两位小数。"
+        step2 = f"第二步算角：{int(frac_part * 100)} 角 × {qty} = {int(frac_part * 100) * qty} 角。"
+        step3 = (
+            f"第三步合并：{int_part * qty} 元 ＋ {int(frac_part * 100) * qty // 10} 元 "
+            f"{(int(frac_part * 100) * qty) % 10} 角 = {fmt_money(total)} 元。"
+        )
+    else:
+        hint2 = f"{fmt_money(price)} × {qty} = □，结果要保留两位小数（先按整数乘，再点小数点）。"
+        step2 = f"第二步去掉小数点按整数算：{int(price * 100)} × {qty} = {int(price * 100) * qty}。"
+        step3 = f"第三步把小数点点回两位：{int(price * 100) * qty} → {fmt_money(total)} 元。"
 
     return {
         "role": ctx["role"],
@@ -785,12 +820,13 @@ def _stage_3_mul(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "unit": "元",
         "hints": [
             "求几个相同单价的合计，用乘法比连加快。",
-            f"{fmt_money(price)} × {qty} = □，注意结果要带两位小数。",
-            hint3,
+            hint2,
+            range_hint,
         ],
         "steps": [
             f"一份 {fmt_money(price)} 元，要买 {qty} 份，就是求 {qty} 个 {fmt_money(price)} 相加。",
-            f"列式：{fmt_money(price)} × {qty} = {fmt_money(total)}（元）。",
+            step2,
+            step3,
             f"所以一共 {fmt_money(total)} 元。",
             CARE_NOTE,
         ],
@@ -801,12 +837,63 @@ def _stage_3_mul(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _stage_4_div(ctx: Dict[str, Any]) -> Dict[str, Any]:
-    """题型四：除法与余数 —— 积分能兑换几份。"""
-    product = ctx["rng"].choice(ctx["points"])
+    """题型四：除法与余数 —— 积分能兑换几份。
+
+    课标对齐（2026-10-25 考据整改 P0-3）：小学除法笔算的上限是「除数是两位数」
+    （新人教四下；课标第二学段学业要求只到「能计算两位数乘除三位数」）。
+    旧实现直接 ``rng.choice(ctx["points"])``，真实数据下除数达 3-4 位（实测
+    「26774 ÷ 6666」），超出小学任何年级的除法笔算要求，且与
+    「除数是两位数的除法」的关卡标签自相矛盾。
+
+    现在按关卡期望的除数位数选池（关卡绑定：4-1～4-5 → g3_div_basic 除数一位数，
+    4-6～4-9 → g4_div_2digit 除数为两位数）：
+      难度 1-5 → 真实池中点数 2-9 的商品；池空时用内置一位除数示例商品；
+      难度 6-9 → 真实池中点数 10-99 的商品；不足时用内置两位除数示例商品补足。
+    选中内置示例时 ``primary_source="fallback"``，题面表格标题经 _table_title
+    统一改标注「（示例数据）」——宁可降级，不编数字、不超纲。
+    """
+    difficulty = ctx["difficulty"]
+    want_digits = 1 if difficulty <= 5 else 2
+    lo, hi = (2, 9) if want_digits == 1 else (10, 99)
+
+    real_pool = [item for item in ctx["points"] if lo <= int(item["points"]) <= hi]
+    real_values = {int(item["points"]) for item in real_pool}
+    builtin = [
+        dict(item)
+        for item in _FALLBACK_POINTS
+        if lo <= int(item["points"]) <= hi and int(item["points"]) not in real_values
+    ]
+    # 真实商品优先；同位数内置示例只补真实池没有的除数，保证 9 难的除数各有变化。
+    pool: List[tuple] = [(item, True) for item in real_pool] + [(item, False) for item in builtin]
+    # 按「难度轮换 + 种子偏移」取：相邻难度拿到不同除数（否则同一除数会连着出现，
+    # 演示页里九道题全是同一个商品名），同时换一次随机种子仍会换一批餐品。
+    ordered = sorted(pool, key=lambda pair: (int(pair[0]["points"]), str(pair[0]["name"])))
+    offset = int(ctx["rng"].random() * len(ordered))
+    product, is_real = ordered[(offset + difficulty - 1) % len(ordered)]
     unit_points = int(product["points"])
-    quotient = 2 + (ctx["difficulty"] - 1) // 2
-    remainder = min(unit_points - 1, 20 + 15 * ctx["difficulty"])
+    # 商随难度严格递增（2→10）：除数被压到一位/两位后，余数会被「余数 < 除数」卡住，
+    # 若商再按两难一档递进，相邻两难会得到同一组（商，余数）→ 题面撞车
+    # （selfcheck 的「81 条不同题面」会因此掉到 78）。商严格递增后每难都不同。
+    quotient = 1 + difficulty
+    remainder = min(unit_points - 1, 5 + 15 * (difficulty - 1) // 2)
     total_points = unit_points * quotient + remainder
+    source_key = "points" if is_real else "fallback"
+
+    # 试商提示按除数位数给不同的方法（一位除数口算试商，两位除数用整十数估）。
+    if want_digits == 1:
+        trial = (
+            f"先想乘法口诀：{unit_points} × {max(quotient - 1, 1)} = "
+            f"{unit_points * max(quotient - 1, 1)}，比 {total_points} 小；"
+            f"再想 {unit_points} × {quotient} = {unit_points * quotient}，"
+            f"加上余数正好是 {total_points}。"
+        )
+    else:
+        round_to = (unit_points // 10) * 10 or 10
+        trial = (
+            f"把除数 {unit_points} 看作接近的整十数 {round_to} 来试商："
+            f"{round_to} × {max(quotient - 1, 1)} = {round_to * max(quotient - 1, 1)}，"
+            f"再慢慢往上加，试到 {unit_points} × {quotient} = {unit_points * quotient} 不超过 {total_points}。"
+        )
 
     return {
         "role": ctx["role"],
@@ -822,16 +909,15 @@ def _stage_4_div(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "answer": str(quotient),
         "unit": "份",
         "hints": [
-            "问「最多能换几份」，就是问总量里面包含几个单价，用除法。",
-            f"{total_points} ÷ {unit_points} = □（份）…… □（积分），商就是答案，余数是剩下的积分。",
-            f"先试商：{unit_points} × {max(quotient - 1, 1)} = {unit_points * max(quotient - 1, 1)}，"
-            f"比 {total_points} 小；再往上试一个数，看会不会超过。",
+            "问「最多能换几份」，就是问总量里面包含几个单价，用带余数的除法。",
+            f"{total_points} ÷ {unit_points} = □（份）…… □（积分），商就是份数，余数是剩下的积分。",
+            trial,
         ],
         "steps": [
             f"把 {total_points} 积分按每份 {unit_points} 积分去分，列式：{total_points} ÷ {unit_points}。",
             f"商是 {quotient}，余数是 {remainder}（{unit_points} × {quotient} = {unit_points * quotient}，"
             f"{total_points} − {unit_points * quotient} = {remainder}）。",
-            f"余数 {remainder} 比每份所需 {unit_points} 积分小，说明不能再换一份，所以最多 {quotient} 份。",
+            f"余数 {remainder} 比每份所需 {unit_points} 积分小，说明不能再换一份，所以最多 {quotient} 份，余 {remainder} 积分。",
             CARE_NOTE,
         ],
         "verify": {"formula": f"{total_points}/{unit_points}", "tool": "calculate-price"},
@@ -843,7 +929,7 @@ def _stage_4_div(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "remainder": remainder,
             "expected": quotient,
         },
-        "primary_source": "points",
+        "primary_source": source_key,
     }
 
 
@@ -862,37 +948,65 @@ def _stage_5_unit(ctx: Dict[str, Any]) -> Dict[str, Any]:
     total_g = weight * qty
     total_kg = (total_g / Decimal("1000")).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
 
+    # 课标对齐（2026-10-25 考据整改 P1-3）：低难档只问「一共多少克」（整数答案，
+    # 对应三上质量单位 + 多位数乘一位数）；高难档才问「多少千克」（换算 + 小数表示，
+    # 对应四下「小数的认识」）。旧实现 9 难全问千克，三位小数答案对低年级超纲。
+    ask_kg = ctx["difficulty"] >= 5
+    if ask_kg:
+        question = f"每份{food['name']}净含量 {fmt_num(weight)} 克，{qty} 份一共多少千克？"
+        answer = fmt_num(total_kg, "0.001")
+        unit = "千克"
+        hints = [
+            "先求总克数（乘法），再想克和千克之间的进率。",
+            f"{fmt_num(weight)} × {qty} = □ 克；把克换成千克要除以 1000，即 □ ÷ 1000 = □ 千克。",
+            f"先算第一步：{fmt_num(weight)} × {qty} = {fmt_num(total_g)} 克。",
+        ]
+        steps = [
+            f"先求总克数：{fmt_num(weight)} × {qty} = {fmt_num(total_g)}（克）。",
+            f"克换算成千克要除以进率 1000：{fmt_num(total_g)} ÷ 1000 = {fmt_num(total_kg, '0.001')}（千克）。",
+            f"所以一共 {fmt_num(total_kg, '0.001')} 千克。",
+            CARE_NOTE,
+        ]
+        diagnosis = {
+            "type": "unit",
+            "grams": str(total_g),
+            "kg": str(total_kg),
+            "expected": str(total_kg),
+        }
+    else:
+        question = f"每份{food['name']}净含量 {fmt_num(weight)} 克，{qty} 份一共多少克？"
+        answer = fmt_num(total_g)
+        unit = "克"
+        hints = [
+            "求几个相同净含量合起来，用乘法比连加快。",
+            f"{fmt_num(weight)} × {qty} = □ 克。",
+            f"先估一估：{fmt_num(weight)} 往大看取整，{qty} 份也不会超过那个数乘 {qty}。",
+        ]
+        steps = [
+            f"每份 {fmt_num(weight)} 克，一共 {qty} 份，就是求 {qty} 个 {fmt_num(weight)} 相加。",
+            f"列式：{fmt_num(weight)} × {qty} = {fmt_num(total_g)}（克）。",
+            f"所以一共 {fmt_num(total_g)} 克。",
+            CARE_NOTE,
+        ]
+        diagnosis = {"type": "mul", "a": str(weight), "b": qty, "expected": str(total_g)}
+
     return {
         "role": ctx["role"],
         "story": f"{ctx['role']}{_place(ctx)}把东西过了一遍秤：{food['name']}每份净含量 {fmt_num(weight)} 克，"
-                 f"一共准备了 {qty} 份，需要按千克登记。",
-        "question": f"每份{food['name']}净含量 {fmt_num(weight)} 克，{qty} 份一共多少千克？",
+                 f"一共准备了 {qty} 份，需要按{'千克' if ask_kg else '克'}登记。",
+        "question": question,
         "data_table": _table(
             "净含量（真实数据）",
             ["餐品", "每份净含量（克）", "份数", "进率"],
             [[food["name"], fmt_num(weight), str(qty), "1 千克 = 1000 克"]],
         ),
         "answer_type": "number",
-        "answer": fmt_num(total_kg, "0.001"),
-        "unit": "千克",
-        "hints": [
-            "先求总克数（乘法），再想克和千克之间的进率。",
-            f"{fmt_num(weight)} × {qty} = □ 克；把克换成千克要除以 1000，即 □ ÷ 1000 = □ 千克。",
-            f"先算第一步：{fmt_num(weight)} × {qty} = {fmt_num(total_g)} 克。",
-        ],
-        "steps": [
-            f"先求总克数：{fmt_num(weight)} × {qty} = {fmt_num(total_g)}（克）。",
-            f"克换算成千克要除以进率 1000：{fmt_num(total_g)} ÷ 1000 = {fmt_num(total_kg, '0.001')}（千克）。",
-            f"所以一共 {fmt_num(total_kg, '0.001')} 千克。",
-            CARE_NOTE,
-        ],
-        "verify": {"formula": f"{fmt_num(weight)}*{qty}/1000", "tool": "calculate-price"},
-        "diagnosis": {
-            "type": "unit",
-            "grams": str(total_g),
-            "kg": str(total_kg),
-            "expected": str(total_kg),
-        },
+        "answer": answer,
+        "unit": unit,
+        "hints": hints,
+        "steps": steps,
+        "verify": {"formula": f"{fmt_num(weight)}*{qty}" + ("/1000" if ask_kg else ""), "tool": "calculate-price"},
+        "diagnosis": diagnosis,
         "primary_source": "fallback" if use_fallback else "nutrition",
     }
 
@@ -917,7 +1031,8 @@ def _stage_6_time(ctx: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "role": ctx["role"],
         "story": f"{ctx['role']}{_place(ctx)}准备出发走一程。活动期「{campaign['name']}」从 "
-                 f"{start.strftime('%Y-%m-%d')} 持续到 {end.strftime('%Y-%m-%d')}，两头都算。"
+                 f"{start.strftime('%Y-%m-%d')} 持续到 {end.strftime('%Y-%m-%d')}"
+                 f"（以活动日历窗口内显示的起止为准），两头都算。"
                  f"队伍计划每天走 {daily_km} 千米。",
         "question": f"活动期一共多少天？按每天走 {daily_km} 千米计算，这些天一共走多少千米？",
         "data_table": _table(
@@ -939,6 +1054,7 @@ def _stage_6_time(ctx: Dict[str, Any]) -> Dict[str, Any]:
             f"{(end.date() - start.date()).days} 天，两头都算再加 1，所以是 {days} 天。",
             f"第二步求路程：{days} × {daily_km} = {total_km}（千米）。",
             f"所以这些天一共走 {total_km} 千米。",
+            "小提醒：活动日历只返回当前窗口内的日期，题面里的起止就是窗口内看到的起止。",
             CARE_NOTE,
         ],
         "verify": {"formula": f"{days}*{daily_km}", "tool": "calculate-price"},
@@ -947,23 +1063,162 @@ def _stage_6_time(ctx: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _stage_7_percent(ctx: Dict[str, Any]) -> Dict[str, Any]:
-    """题型七：分数与百分数 —— 蛋白质供能占比。
+def _stage_7_fraction_percent(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """题型七：分数与百分数 —— 按难度三段式。
 
-    数据里只有「蛋白质」这一个营养素字段（没有脂肪 / 碳水），所以不做营养素轮换，
-    改为**按难度在真实餐品里轮换取样**：按总能量从低到高排序后等距取 9 个位置，
-    9 难分别对应不同的餐品与能量档位（35～570 千卡），既保证 9 道题面互不相同，
-    也让「部分占整体」的比例随数据真实变化。
+    课标对齐（2026-10-25 考据整改 P0-1）：旧实现 9 难全是百分数题，但 7-1～7-6 绑的是
+    「分数初步（3 年级）/分数加减法（5 年级）」——``play --grade 3/5`` 会输出孩子
+    没学过的百分数题（百分数在 2022 版课标属第三学段、人教版六上）。
+
+    现在按课标把第 7 关拆成三段，数据源不变（仍是营养表）：
+      难度 1-3（g3_fraction_intro，三上「分数的初步认识」）：
+          整数 × 几分之一 —— 「一份含蛋白质 P 克，吃掉了它的几分之一，吃掉多少克？」
+      难度 4-6（g5_fraction_addsub，五下「分数的认识与约分」）：
+          部分占整体的几分之几 —— 「一餐蛋白质共 A 克，其中一样占 B 克，占几分之几？」
+          （答案要约成最简分数；等价分数判对，讲解里展示约分过程）
+      难度 7-9（g6_percent，六上「百分数」）：保持原百分数题不变。
     """
     candidates = [item for item in ctx["foods"] if item["protein"] > 0 and item["kcal"] > 0]
     if not candidates:
         candidates = ctx["foods"]
-    candidates = sorted(candidates, key=lambda item: (int(item["kcal"]), str(item["name"])))
-    span = len(candidates)
-    index = (ctx["difficulty"] - 1) * (span - 1) // 8 if span > 1 else 0
-    food = candidates[max(0, min(span - 1, index))]
-    protein = Decimal(food["protein"])
-    energy = Decimal(food["kcal"])
+    difficulty = ctx["difficulty"]
+
+    # ---- 分支一：难度 1-3，整数 × 几分之一（分数初步，三上） ----
+    if difficulty <= 3:
+        denom = {1: 2, 2: 3, 3: 4}[difficulty]
+        denom_word = {2: "一半", 3: "三分之一", 4: "四分之一"}[denom]
+        # 挑蛋白质能被分母整除的餐品，保证答案是整数克（三上不学小数除法）。
+        divisible = [
+            item for item in candidates
+            if (Decimal(str(item["protein"])) % denom) == 0 and Decimal(str(item["protein"])) > 0
+        ]
+        use_fallback = not divisible
+        pool = divisible if divisible else [
+            item for item in _FALLBACK_FOODS
+            if (item["protein"] % denom) == 0 and item["protein"] > 0
+        ]
+        if not pool:  # 理论上不会发生（内置示例含偶数蛋白质）；兜底用巨无霸改问一半
+            pool, denom, denom_word = [{"name": "巨无霸", "protein": Decimal("26")}], 2, "一半"
+        food = ctx["rng"].choice(pool)
+        protein = Decimal(str(food["protein"]))
+        eaten = protein / denom
+        return {
+            "role": ctx["role"],
+            "story": f"{ctx['role']}{_place(ctx)}翻看营养标签：{food['name']}含蛋白质 "
+                     f"{fmt_num(protein)} 克。这一份被平均分给 {denom} 个人，每人分到同样多。",
+            "question": f"{food['name']}含蛋白质 {fmt_num(protein)} 克，每人分到其中{denom_word}，"
+                        f"每人分到多少克蛋白质？",
+            "data_table": _table(
+                "营养标签（真实数据）",
+                ["餐品", "蛋白质（克）", "平均分成", "每人取几份"],
+                [[food["name"], fmt_num(protein), f"{denom} 份", "1 份"]],
+            ),
+            "answer_type": "number",
+            "answer": fmt_num(eaten),
+            "unit": "克",
+            "hints": [
+                f"「其中{denom_word}」就是把 {fmt_num(protein)} 克平均分成 {denom} 份，取其中 1 份，用除法。",
+                f"{fmt_num(protein)} ÷ {denom} = □（克）。",
+                f"想乘法口诀倒推：{denom} × □ = {fmt_num(protein)}，这个 □ 就是每人的克数。",
+            ],
+            "steps": [
+                f"把 {fmt_num(protein)} 克平均分成 {denom} 份，列式：{fmt_num(protein)} ÷ {denom}。",
+                f"算一算：{fmt_num(protein)} ÷ {denom} = {fmt_num(eaten)}（克）。",
+                f"所以每人分到 {fmt_num(eaten)} 克蛋白质，也就是这{denom}份里的 1 份，即 1/{denom}。",
+                CARE_NOTE,
+            ],
+            "verify": {"formula": f"{fmt_num(protein)}/{denom}", "tool": "calculate-price"},
+            "diagnosis": {
+                "type": "fraction_eat",
+                "protein": str(protein),
+                "denom": denom,
+                "expected": str(eaten),
+            },
+            "primary_source": "fallback" if use_fallback else "nutrition",
+        }
+
+    # ---- 分支二：难度 4-6，部分占整体的几分之几（分数的认识与约分，五下） ----
+    if difficulty <= 6:
+        pool = [item for item in candidates if item["protein"] > 0]
+        if not pool:
+            pool = _FALLBACK_FOODS
+        # 按难度控制约分工作量：低难档给「好约」的分数（分母小），高难档给需要真约分的。
+        target_gcd = {4: "large", 5: "medium", 6: "small"}[difficulty]
+        best = None
+        for _ in range(24):
+            pair = ctx["rng"].sample(pool, 2) if len(pool) >= 2 else [pool[0], pool[0]]
+            a = Decimal(str(pair[0]["protein"]))
+            b = Decimal(str(pair[1]["protein"]))
+            if a <= 0 or b <= 0 or a + b > 200:
+                continue
+            num, den = int(a), int(a + b)
+            g = gcd(num, den)
+            red_num, red_den = num // g, den // g
+            if red_den > 30:  # 分母太大超出五下练习范围
+                continue
+            score = {"large": -red_den, "medium": -abs(red_den - 8), "small": red_den}[target_gcd]
+            if best is None or score > best[0]:
+                best = (score, pair, a, b, num, den, g, red_num, red_den)
+            if target_gcd == "large" and red_den <= 4:
+                break
+        if best is None:  # 数据异常时的兜底
+            pair = ctx["rng"].sample(pool, 2) if len(pool) >= 2 else [pool[0], pool[0]]
+            a, b = Decimal(str(pair[0]["protein"])), Decimal(str(pair[1]["protein"]))
+            num, den = int(a), int(a + b)
+            g = gcd(num, den)
+            best = (0, pair, a, b, num, den, g, num // g, den // g)
+        _, pair, a, b, num, den, g, red_num, red_den = best
+        item_a, item_b = pair[0], pair[1]
+        return {
+            "role": ctx["role"],
+            "story": f"{ctx['role']}{_place(ctx)}搭配一餐：{item_a['name']}含蛋白质 {fmt_num(a)} 克，"
+                     f"{item_b['name']}含蛋白质 {fmt_num(b)} 克。他想知道第一样占这两样蛋白质总量的几分之几。",
+            "question": f"把{item_a['name']}和{item_b['name']}的蛋白质合起来算一份，"
+                        f"{item_a['name']}的蛋白质占这份的几分之几？（写成最简分数）",
+            "data_table": _table(
+                "营养标签（真实数据）",
+                ["餐品", "蛋白质（克）", "占蛋白质总量"],
+                [
+                    [item_a["name"], fmt_num(a), f"?/{den}"],
+                    [item_b["name"], fmt_num(b), "——"],
+                    ["合计", fmt_num(a + b), f"{den} 份为整体"],
+                ],
+            ),
+            "answer_type": "fraction",
+            "answer": f"{red_num}/{red_den}",
+            "unit": "",
+            "hints": [
+                "求「一个数占另一个数的几分之几」：部分 ÷ 整体，写成分数。",
+                f"部分是 {fmt_num(a)} 克，整体是 {fmt_num(a)} + {fmt_num(b)} = {num} 克，"
+                f"先写成分数 {num}/{den}。",
+                f"再看看能不能约分：{num} 和 {den} 的最大公因数是 {g}，"
+                f"分子分母同时除以 {g}，得到 {red_num}/{red_den}。",
+            ],
+            "steps": [
+                f"先求整体：{fmt_num(a)} + {fmt_num(b)} = {num}（克）。",
+                f"再求部分占整体：{num}/{den}。",
+                f"约分：{num} 和 {den} 的最大公因数是 {g}，{num} ÷ {g} = {red_num}，"
+                f"{den} ÷ {g} = {red_den}，所以是 {red_num}/{red_den}。",
+                f"验算：{red_num}/{red_den} 就是 {num} 份里面的 {red_num} 份，和 {num}/{den} 一样大。",
+                CARE_NOTE,
+            ],
+            "verify": {"formula": f"{num}/{den}", "tool": "calculate-price"},
+            "diagnosis": {
+                "type": "fraction_part",
+                "part": str(a),
+                "whole": str(a + b),
+                "expected": f"{red_num}/{red_den}",
+            },
+            "primary_source": "nutrition",
+        }
+
+    # ---- 分支三：难度 7-9，百分数（六上，保持原实现） ----
+    sorted_candidates = sorted(candidates, key=lambda item: (int(item["kcal"]), str(item["name"])))
+    span = len(sorted_candidates)
+    index = (difficulty - 1) * (span - 1) // 8 if span > 1 else 0
+    food = sorted_candidates[max(0, min(span - 1, index))]
+    protein = Decimal(str(food["protein"]))
+    energy = Decimal(str(food["kcal"]))
     part = protein * Decimal("4")
     ratio = (part / energy * Decimal("100")).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
     if abs(part - ratio) <= Decimal("0.05"):
@@ -1050,8 +1305,16 @@ def _stage_9_discount(ctx: Dict[str, Any]) -> Dict[str, Any]:
     coupons = ctx["coupons"]
     difficulty = ctx["difficulty"]
     pool = sorted(ctx["meals"], key=lambda item: item["price"], reverse=True)
-    count = min(2 + (difficulty - 1) % 4, len(pool))
-    start = (difficulty - 1) % max(1, len(pool) - count + 1)
+    if difficulty >= 8:
+        # 8、9 难要教「相当于便宜了百分之几」（六上百分数的应用），
+        # 篮子必须够到券的门槛才有的可算——固定取价格最高的几样，
+        # 免得高档位反而落在「没有券达标、按原价付款」的分支上。
+        # 8 难取三样、9 难取四样：两难篮子不同，题面才不会撞车。
+        count = min(3 if difficulty == 8 else 4, len(pool))
+        start = 0
+    else:
+        count = min(2 + (difficulty - 1) % 4, len(pool))
+        start = (difficulty - 1) % max(1, len(pool) - count + 1)
     picks: List[Dict[str, Any]] = list(pool[start:start + count])
     while len(picks) < 2:  # 菜单条数不足时的兜底
         picks.append(pool[len(picks) % len(pool)])
@@ -1095,39 +1358,80 @@ def _stage_9_discount(ctx: Dict[str, Any]) -> Dict[str, Any]:
             f"「{best['name']}」，可减 {fmt_num(best['discount'])} 元。"
         )
 
+    # 课标对齐（2026-10-25 考据整改 P2-1）：8、9 难改问「相当于便宜了百分之几」，
+    # 直接对标新人教六上「百分数的应用（折扣）」——数据是真实菜单价，算式现成。
+    answer_type = "number"
+    answer = fmt_money(pay)
+    answer_unit = "元"
+    hints = [
+        "先看每张券的门槛有没有达到，只有达到门槛的券才能用。",
+        hint2,
+        hint3,
+    ]
+    steps = [
+        "第一步求原价合计：" + " + ".join(fmt_money(item["price"]) for item in picks) + f" = {fmt_money(basket)}（元）。",
+        "第二步判断门槛："
+        + "；".join(
+            f"{coupon['name']} 需要满 {fmt_num(coupon['threshold'])} 元，"
+            + ("已达到" if basket >= coupon["threshold"] else "未达到")
+            for coupon in coupons
+        )
+        + "。",
+        f"第三步求实付：{fmt_money(basket)} − {fmt_num(best['discount'])} = {fmt_money(pay)}（元）。",
+        CARE_NOTE,
+    ]
+    diagnosis = {
+        "type": "discount",
+        "total": str(basket),
+        "discount": str(best["discount"]),
+        "expected": str(pay),
+    }
+    if difficulty >= 8 and not no_coupon and basket > 0:
+        saved_pct = (best["discount"] / basket * Decimal("100")).quantize(
+            Decimal("0.1"), rounding=ROUND_HALF_UP
+        )
+        # 注意：数据表里不能出现「便宜了百分之几」这一行——那等于把答案写在题面上。
+        answer_type = "percent"
+        answer = fmt_num(saved_pct, "0.1")
+        answer_unit = "%"
+        question = (
+            f"这几样餐品原价合计 {fmt_money(basket)} 元，用「{best['name']}」省下 "
+            f"{fmt_num(best['discount'])} 元。这样买相当于便宜了百分之几？（百分号前保留一位小数）"
+        )
+        hints = [
+            "求「便宜了百分之几」，就是用省下的钱数除以原价合计，再乘 100。",
+            f"省下 {fmt_num(best['discount'])} 元，原价合计 {fmt_money(basket)} 元，"
+            f"列式：{fmt_num(best['discount'])} ÷ {fmt_money(basket)} × 100% = □%。",
+            f"先估一估：{fmt_num(best['discount'])} ÷ {fmt_money(basket)} 不到十分之一，"
+            f"所以答案比 10% 小。",
+        ]
+        steps = [
+            f"第一步求原价合计：{' + '.join(fmt_money(item['price']) for item in picks)} = {fmt_money(basket)}（元）。",
+            f"第二步求省下的钱：{fmt_num(best['discount'])} 元（用「{best['name']}」）。",
+            f"第三步求便宜了百分之几：{fmt_num(best['discount'])} ÷ {fmt_money(basket)} × 100% ≈ "
+            f"{fmt_num(saved_pct, '0.1')}%。",
+            CARE_NOTE,
+        ]
+        diagnosis = {
+            "type": "percent",
+            "part": str(best["discount"]),
+            "whole": str(basket),
+            "expected": str(saved_pct),
+        }
+
     return {
         "role": ctx["role"],
         "story": f"{ctx['role']}{_place(ctx)}结算，篮子里是{names}，按需购买不多拿。"
                  f"手上有这些券：{coupon_text}。",
         "question": question,
         "data_table": _table("菜单与优惠券（真实数据）", ["项目", "金额（元）"], rows),
-        "answer_type": "number",
-        "answer": fmt_money(pay),
-        "unit": "元",
-        "hints": [
-            "先看每张券的门槛有没有达到，只有达到门槛的券才能用。",
-            hint2,
-            hint3,
-        ],
-        "steps": [
-            "第一步求原价合计：" + " + ".join(fmt_money(item["price"]) for item in picks) + f" = {fmt_money(basket)}（元）。",
-            "第二步判断门槛："
-            + "；".join(
-                f"{coupon['name']} 需要满 {fmt_num(coupon['threshold'])} 元，"
-                + ("已达到" if basket >= coupon["threshold"] else "未达到")
-                for coupon in coupons
-            )
-            + "。",
-            f"第三步求实付：{fmt_money(basket)} − {fmt_num(best['discount'])} = {fmt_money(pay)}（元）。",
-            CARE_NOTE,
-        ],
+        "answer_type": answer_type,
+        "answer": answer,
+        "unit": answer_unit,
+        "hints": hints,
+        "steps": steps,
         "verify": {"formula": f"{fmt_money(basket)}-{fmt_num(best['discount'])}", "tool": "calculate-price"},
-        "diagnosis": {
-            "type": "discount",
-            "total": str(basket),
-            "discount": str(best["discount"]),
-            "expected": str(pay),
-        },
+        "diagnosis": diagnosis,
         "primary_source": "coupons",
     }
 
@@ -1139,7 +1443,7 @@ _TEMPLATES = {
     4: _stage_4_div,
     5: _stage_5_unit,
     6: _stage_6_time,
-    7: _stage_7_percent,
+    7: _stage_7_fraction_percent,
     8: _stage_8_average,
     9: _stage_9_discount,
 }
@@ -1189,13 +1493,22 @@ def _table_title(base: str, source: str, fetched_at: Any = "") -> str:
 
 
 def _answer_value(answer: Any) -> Optional[Decimal]:
-    """把题目答案转成可比较的 :class:`Decimal`（兼容百分数写法）。"""
+    """把题目答案转成可比较的 :class:`Decimal`（兼容百分数写法与分数写法）。"""
     text = str(answer or "").strip().replace("%", "")
     if not text:
         return None
     try:
         return Decimal(text)
     except InvalidOperation:
+        # 分数答案（课标整改新增的 fraction 题型，如 "6/19"）：按分数除法解析。
+        match = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)\s*$", text)
+        if match:
+            try:
+                denominator = Decimal(match.group(2))
+                if denominator != 0:
+                    return Decimal(match.group(1)) / denominator
+            except InvalidOperation:
+                return None
         return None
 
 

@@ -170,43 +170,43 @@
       "levels": [
         {
           "level_id": "3-1",
-          "kp_id": "g3_mul_basic",
+          "kp_id": "g3_money",
           "brief": "买两份同样的餐品，一共要多少元？",
           "data_hint": "menu"
         },
         {
           "level_id": "3-2",
-          "kp_id": "g3_mul_basic",
+          "kp_id": "g3_money",
           "brief": "三份同样的餐品，总价是多少元？",
           "data_hint": "menu"
         },
         {
           "level_id": "3-3",
-          "kp_id": "g3_mul_basic",
+          "kp_id": "g3_money",
           "brief": "四份餐品一起结算，需要多少元？",
           "data_hint": "menu"
         },
         {
           "level_id": "3-4",
-          "kp_id": "g3_mul_basic",
+          "kp_id": "g3_money",
           "brief": "五份同款餐品，按单价算总价是多少？",
           "data_hint": "menu"
         },
         {
           "level_id": "3-5",
-          "kp_id": "g4_mul_3by2",
+          "kp_id": "g5_decimal_muldiv",
           "brief": "六份餐品的金额，用乘法一次算出来。",
           "data_hint": "menu"
         },
         {
           "level_id": "3-6",
-          "kp_id": "g4_mul_3by2",
+          "kp_id": "g5_decimal_muldiv",
           "brief": "七份同款，先估一估总价再精确计算。",
           "data_hint": "menu"
         },
         {
           "level_id": "3-7",
-          "kp_id": "g4_mul_3by2",
+          "kp_id": "g5_decimal_muldiv",
           "brief": "八份餐品的总价是多少元？注意小数位。",
           "data_hint": "menu"
         },
@@ -302,49 +302,49 @@
       "levels": [
         {
           "level_id": "5-1",
-          "kp_id": "g4_decimal",
+          "kp_id": "g3_unit_measure",
           "brief": "两份餐品的净含量合计多少千克？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "5-2",
-          "kp_id": "g4_decimal",
+          "kp_id": "g3_unit_measure",
           "brief": "三份餐品的总质量换成千克是多少？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "5-3",
-          "kp_id": "g4_decimal",
+          "kp_id": "g3_unit_measure",
           "brief": "四份餐品的质量合并，用千克表示。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "5-4",
-          "kp_id": "g4_decimal",
+          "kp_id": "g3_unit_measure",
           "brief": "五份餐品一共多少克？再换成千克。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "5-5",
-          "kp_id": "g3_unit_measure",
+          "kp_id": "g4_decimal",
           "brief": "六份餐品的质量合计多少千克？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "5-6",
-          "kp_id": "g3_unit_measure",
+          "kp_id": "g4_decimal",
           "brief": "先求总克数，再换算成千克。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "5-7",
-          "kp_id": "g5_decimal_muldiv",
+          "kp_id": "g4_decimal",
           "brief": "质量相加后别忘了：1 千克 = 1000 克。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "5-8",
-          "kp_id": "g5_decimal_muldiv",
+          "kp_id": "g4_decimal",
           "brief": "多份餐品总质量用千克表示是多少？",
           "data_hint": "nutrition"
         },
@@ -416,7 +416,7 @@
         },
         {
           "level_id": "6-9",
-          "kp_id": "g5_equation",
+          "kp_id": "g4_mixed_ops",
           "brief": "把天数当份数，用乘法求总路程。",
           "data_hint": "calendar"
         }
@@ -542,13 +542,13 @@
         },
         {
           "level_id": "8-8",
-          "kp_id": "g5_line_chart",
+          "kp_id": "g4_bar_chart",
           "brief": "价格相差较大，平均数要算准。",
           "data_hint": "menu"
         },
         {
           "level_id": "8-9",
-          "kp_id": "g6_pie_chart",
+          "kp_id": "g4_bar_chart",
           "brief": "先求总价再平均，结果保留两位小数。",
           "data_hint": "menu"
         }
@@ -590,13 +590,13 @@
         },
         {
           "level_id": "9-5",
-          "kp_id": "g6_ratio",
+          "kp_id": "g6_percent",
           "brief": "比较两张券减后的金额，取较少的一个。",
           "data_hint": "coupons"
         },
         {
           "level_id": "9-6",
-          "kp_id": "g6_ratio",
+          "kp_id": "g6_percent",
           "brief": "总价减去券面额，实付多少元？",
           "data_hint": "coupons"
         },
@@ -608,7 +608,7 @@
         },
         {
           "level_id": "9-8",
-          "kp_id": "g6_fraction_muldiv",
+          "kp_id": "g6_percent",
           "brief": "门槛达到才可用，实付最少多少元？",
           "data_hint": "coupons"
         },

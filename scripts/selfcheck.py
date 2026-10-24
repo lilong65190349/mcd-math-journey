@@ -39,6 +39,7 @@ README 第七节写的是「真实运行结果」，一旦出题模板、CLI 文
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -56,6 +57,7 @@ DEMO_INDEX: Path = PROJECT_ROOT / "demo" / "index.html"
 DEMO_BANK: Path = PROJECT_ROOT / "demo" / "bank.json"
 EGG_ENGINE: Path = PROJECT_ROOT / "demo" / "egg-engine.js"
 RUN_RULES: Path = PROJECT_ROOT / "data" / "run_rules.json"
+CURRICULUM: Path = PROJECT_ROOT / "data" / "curriculum.json"
 
 BANK_START: str = "/* @@BANK_START@@ */"
 BANK_END: str = "/* @@BANK_END@@ */"
@@ -1090,6 +1092,129 @@ def check_readme_numbers(story_count: int, total_levels: int) -> Tuple[List[str]
     return problems, distinct
 
 
+def check_curriculum_alignment() -> List[str]:
+    """课标对齐的机器断言（2026-10-25 考据整改后新增）。
+
+    把这次整改的结论钉成自动检查，防止以后改题时悄悄回退：
+
+    * 第 4 关：1-5 难只能出现**一位数**除数，6-9 难只能出现**两位数**除数
+      （小学除法笔算上限是「除数是两位数」，新人教四下）；
+    * 第 5 关：1-4 难答案单位是「克」（整数），5-9 难才是「千克」；
+    * 第 7 关：1-3 难是分数初步（整数克），4-6 难是分数（答案须为最简分数），
+      7-9 难才是百分数——这一条同时守住「3/5 年级不出现百分数题」；
+    * 第 9 关：8-9 难是百分数（折扣应用）；
+    * 分数答案必须精确判分：等价分数判对、近似小数判错；
+    * 知识点图谱：每个 kp 都要带 stage / textbook_ref / note，且不得再挂着
+      「简易方程」「负数」这类已移出小学的知识点名。
+
+    Returns:
+        问题描述列表；为空表示全部通过。
+    """
+    issues: List[str] = []
+    import problem_gen  # noqa: E402
+    import verify  # noqa: E402
+
+    def gen(level_id: str) -> Dict[str, Any]:
+        return problem_gen.generate(level_id=level_id, salt="align")
+
+    # 1) 第 4 关除数位数
+    for difficulty in range(1, 10):
+        problem = gen(f"4-{difficulty}")
+        divisor = int((problem.get("diagnosis") or {}).get("divisor") or 0)
+        if difficulty <= 5:
+            if not 2 <= divisor <= 9:
+                issues.append(
+                    f"4-{difficulty}：除数是 {divisor}，应为一位数（2-9）"
+                    "——小学除法笔算上限是「除数是两位数」，低难档不能出两位及以上除数"
+                )
+        else:
+            if not 10 <= divisor <= 99:
+                issues.append(
+                    f"4-{difficulty}：除数是 {divisor}，应为两位数（10-99）"
+                    "——与关卡标签「除数是两位数的除法」必须一致"
+                )
+
+    # 2) 第 5 关单位分层
+    for difficulty in range(1, 10):
+        problem = gen(f"5-{difficulty}")
+        unit = str(problem.get("unit") or "")
+        expected = "克" if difficulty <= 4 else "千克"
+        if unit != expected:
+            issues.append(f"5-{difficulty}：答案单位是「{unit}」，应为「{expected}」")
+        if expected == "克" and "." in str(problem.get("answer") or ""):
+            issues.append(f"5-{difficulty}：低难档答案应取整数克，实际 {problem.get('answer')}")
+
+    # 3) 第 7 关三段式 + 最简分数
+    for difficulty in range(1, 10):
+        problem = gen(f"7-{difficulty}")
+        answer_type = str(problem.get("answer_type") or "")
+        if difficulty <= 3:
+            if answer_type == "percent":
+                issues.append("7-1~7-3 不得出百分数题（百分数属第三学段，六年级）")
+            if "." in str(problem.get("answer") or ""):
+                issues.append(f"7-{difficulty}：分数初步题的答案应是整数克，实际 {problem.get('answer')}")
+        elif difficulty <= 6:
+            if answer_type != "fraction":
+                issues.append(f"7-{difficulty}：应为分数题（answer_type=fraction），实际 {answer_type}")
+            else:
+                text = str(problem.get("answer") or "")
+                parts = text.split("/")
+                if len(parts) != 2 or not all(part.strip().isdigit() for part in parts):
+                    issues.append(f"7-{difficulty}：分数答案格式应为 a/b，实际 {text!r}")
+                else:
+                    numerator, denominator = int(parts[0]), int(parts[1])
+                    if numerator <= 0 or denominator <= 0:
+                        issues.append(f"7-{difficulty}：分数答案的分子分母必须为正，实际 {text!r}")
+                    elif math.gcd(numerator, denominator) != 1:
+                        issues.append(f"7-{difficulty}：分数答案 {text!r} 不是最简分数")
+                    elif denominator > 30:
+                        issues.append(f"7-{difficulty}：分数分母 {denominator} 超出五下练习范围（应 ≤ 30）")
+        else:
+            if answer_type != "percent":
+                issues.append(f"7-{difficulty}：应为百分数题（answer_type=percent），实际 {answer_type}")
+
+    # 4) 第 9 关高难档是百分数（若该题篮子没够到券的门槛，则按原价付款是设计内的分支）
+    for difficulty in (8, 9):
+        problem = gen(f"9-{difficulty}")
+        rows = (problem.get("data_table") or {}).get("rows") or []
+        no_coupon = any("券的情况" in str(row[0]) for row in rows if row)
+        if not no_coupon and str(problem.get("answer_type") or "") != "percent":
+            issues.append(f"9-{difficulty}：应为百分数题（折扣应用），实际 {problem.get('answer_type')}")
+        if no_coupon and difficulty >= 8:
+            issues.append(
+                f"9-{difficulty}：高档位落在「没有券达标」分支上，"
+                "应保证篮子够到门槛，才能教到折扣百分数"
+            )
+
+    # 5) 分数答案的判分必须精确
+    fraction_problem = gen("7-4")
+    answer = str(fraction_problem.get("answer") or "")
+    if "/" in answer:
+        numerator, denominator = (int(part) for part in answer.split("/"))
+        equivalent = verify.check_answer(fraction_problem, f"{numerator * 3}/{denominator * 3}")
+        if not equivalent.get("correct"):
+            issues.append("分数判分：等价分数（3 倍分子分母）应判对")
+        approx = f"{numerator / denominator:.2f}"
+        if verify.check_answer(fraction_problem, approx).get("correct"):
+            issues.append(f"分数判分：近似小数 {approx} 不应判对（容差必须比数值容差严）")
+
+    # 6) 知识点图谱字段与命名
+    curriculum = json.loads(CURRICULUM.read_text(encoding="utf-8"))
+    for grade in curriculum.get("grades") or []:
+        for kp in grade.get("kps") or []:
+            kp_id = str(kp.get("id") or "")
+            for field in ("stage", "textbook_ref", "note"):
+                if not str(kp.get(field) or "").strip():
+                    issues.append(f"知识点 {kp_id} 缺少 {field} 字段")
+            name = str(kp.get("name") or "")
+            if name in ("简易方程", "负数"):
+                issues.append(
+                    f"知识点 {kp_id} 仍叫「{name}」：该内容已随 2022 年版课标移出小学，"
+                    "应改为小学仍然存在的表述"
+                )
+    return issues
+
+
 def main() -> int:
     """入口：返回 0 表示文档与代码一致。"""
     if not README_PATH.exists():
@@ -1145,6 +1270,11 @@ def main() -> int:
     for issue in check_brief_question():
         problems.append(
             {"line_no": 0, "expect": "brief 里的份数与题面一致", "actual": issue}
+        )
+
+    for issue in check_curriculum_alignment():
+        problems.append(
+            {"line_no": 0, "expect": "课标对齐（第 4 关除数位数 / 第 5、7、9 关分层 / 分数精确判分 / 知识点图谱字段）", "actual": issue}
         )
 
     char_issues, char_total, char_short, char_long = check_characters_data()
