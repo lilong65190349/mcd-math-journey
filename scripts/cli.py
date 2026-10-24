@@ -2,17 +2,28 @@
 
 用法::
 
-    python scripts/cli.py stories                # 列出全部故事线（可插拔注册表）
+    python scripts/cli.py stories                # 列出全部故事线（含解锁进度与锁状态）
     python scripts/cli.py stages                 # 列出所有线的关名摘要
     python scripts/cli.py stages --story sanguo  # 列出某条线的 9 关与通关状态
-    python scripts/cli.py play --level 3-2       # 玩一关（默认西游记）
+    python scripts/cli.py play --level 3         # 进入第 3 关（闯关玩法：抽题 / 计时 / 品阶 / 收卡）
+    python scripts/cli.py play --story sanguo --stage 3   # 同上，指定故事线
+    python scripts/cli.py play --level 3-2       # 玩一道题（旧的按难度档出题，行为不变）
     python scripts/cli.py play --story sanguo --level sanguo-3-2
     python scripts/cli.py play --grade 4 --count 5
+    python scripts/cli.py characters             # 角色图鉴（三种状态）
+    python scripts/cli.py characters --story xiyou --unlocked-only
     python scripts/cli.py wrongbook              # 错题本（全量，标注来源线）
     python scripts/cli.py report                 # 家长周报
     python scripts/cli.py doctor                 # 环境自检
 
-``--story`` 省略时一律使用注册表里的默认线（``xiyou``），行为与改造前完全一致。
+``--level`` 有两种写法，两种并存：
+
+* ``--level 3``（纯关号）或 ``--story X --stage 3`` → **闯关玩法**：按关抽 1~3 题、
+  计时、评品阶、揭守关大将、收角色卡；
+* ``--level 3-2``（关号-难度）→ **旧的单题模式**：行为与改造前完全一致，
+  README 里写死的示例输出不受影响。
+
+``--story`` 省略时一律使用注册表里的默认线（``xiyou``）。
 没有 ``MCD_MCP_TOKEN`` 时也能完整跑通：数据会自动降级到本地缓存或示例快照，
 并在开头明确告知当前数据级别。
 """
@@ -21,7 +32,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
+import time
 import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -29,7 +42,9 @@ from typing import Any, Dict, List, Optional
 if __package__ in (None, ""):  # pragma: no cover - 脚本运行路径
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import characters  # noqa: E402
 import data_source  # noqa: E402
+import journey  # noqa: E402
 import problem_gen  # noqa: E402
 import progress  # noqa: E402
 import verify  # noqa: E402
@@ -41,6 +56,9 @@ CACHE_DIR: Path = PROJECT_ROOT / "data" / "cache"
 
 MAX_HINTS: int = 3
 MAX_TRIES: int = 3
+
+STAGE_ARG_RE = re.compile(r"^\d{1,2}$")
+"""纯关号（``3``）→ 闯关玩法；带短横线的（``3-2``）→ 旧的单题模式。"""
 
 DISCLAIMER: str = (
     "非麦当劳官方产品，输出仅供参考，餐品信息与价格以麦当劳官方渠道实时结果为准。"
@@ -124,9 +142,11 @@ def _render_stage_map(story: Optional[str] = None) -> str:
     lines.append(_rule("═"))
     lines.append(f"  已通关 {cleared_count}/9 关　｜　故事线：{data.get('name', sid)}（{sid}）")
     if sid == problem_gen.default_story():
-        lines.append("  用法：python scripts/cli.py play --level 3-2")
+        lines.append("  闯关：python scripts/cli.py play --level 3（进入第 3 关）")
+        lines.append("  单题：python scripts/cli.py play --level 3-2")
     else:
-        lines.append(f"  用法：python scripts/cli.py play --story {sid} --level {sid}-3-2")
+        lines.append(f"  闯关：python scripts/cli.py play --story {sid} --stage 3")
+        lines.append(f"  单题：python scripts/cli.py play --story {sid} --level {sid}-3-2")
     lines.append(f"  {DISCLAIMER}")
     return "\n".join(lines)
 
@@ -226,7 +246,9 @@ def cmd_stages(args: argparse.Namespace) -> int:
 
 
 def cmd_stories(_: argparse.Namespace) -> int:
-    """列出故事线注册表（含未上线的线）。"""
+    """列出故事线注册表与解锁进度（含未上线的线）。"""
+    clears = progress.get_clear_map()
+    order = journey.storyline_order()
     print()
     print(_rule("═"))
     print("  故事线列表（data/storylines/index.json）")
@@ -234,29 +256,330 @@ def cmd_stories(_: argparse.Namespace) -> int:
     for item in problem_gen.list_storylines(only_available=False):
         stages = problem_gen.list_stages(item["id"]) if item["available"] else []
         level_count = sum(int(stage["level_count"]) for stage in stages)
-        status = "已上线" if item["available"] else "未上线（不注册）"
+        if not item["available"]:
+            status = "未上线（不注册）"
+            progress_text = "—"
+        else:
+            info = journey.story_progress(item["id"], clears)
+            status = "已解锁" if info["unlocked"] else "🔒 未解锁"
+            progress_text = f"{info['cleared']}/{info['total']} 关"
+            if not info["unlocked"] and info["previous"]:
+                status = f"🔒 需先完成《{info['previous_name']}》9 关"
         print(
             f"  {_pad(item['id'], 10)}{_pad(item['name'], 12)}"
-            f"{_pad(f'{len(stages)} 关 / {level_count} 难', 14)}{status}"
+            f"{_pad(f'{len(stages)} 关 / {level_count} 难', 14)}"
+            f"{_pad(progress_text, 10)}{status}"
         )
         if item["subtitle"]:
             print(f"      {item['subtitle']}")
     print(_rule("═"))
     default_id = problem_gen.default_story()
     print(f"  默认故事线：{problem_gen.storyline_name(default_id)}（{default_id}）")
-    lines_available = "、".join(problem_gen.story_ids(only_available=True))
-    print(f"  可用：{lines_available}")
-    print("  说明：available=false 的线不会出现在 stages / demo 里，也不会被出题注册。")
+    print(f"  解锁顺序：{' → '.join(journey.storyline_name(sid) for sid in order)}")
+    print("  规则：每条线第 1 关默认可玩；第 k 关要先通关第 k-1 关；下一条线要先走完上一条线的 9 关。")
+    print("  用法：python scripts/cli.py play --level 3　（进入第 3 关）")
     print(f"  {DISCLAIMER}")
     return 0
 
 
+def cmd_characters(args: argparse.Namespace) -> int:
+    """角色图鉴：按线列出 14 名角色与三种状态（未遇见 / 已收集待解锁 / 已解锁）。"""
+    story = getattr(args, "story", None)
+    only_unlocked = bool(getattr(args, "unlocked_only", False))
+    clears = progress.get_stage_clears()
+    lines: List[str] = []
+    lines.append(_rule("═"))
+    lines.append("  角色图鉴（每条线 9 名闯关大将 + 5 名守关大将）")
+    lines.append(_rule("═"))
+    for sid in problem_gen.story_ids(only_available=True):
+        if story and sid != story:
+            continue
+        records = progress.get_collection(sid)
+        stats = characters.summary(sid, records)
+        lines.append("")
+        lines.append(
+            f"  {problem_gen.storyline_name(sid)}（{sid}）　"
+            f"已收集 {stats['collected']}/{stats['total']}　介绍解锁 {stats['unlocked']}"
+        )
+        items = characters.collection_view(sid, records)
+        if only_unlocked:
+            items = [item for item in items if item["state"] == characters.STATE_UNLOCKED]
+            if not items:
+                lines.append("    还没有解锁的介绍。干净通关（不看提示、不答错）就能读到第一段。")
+                continue
+
+        rows: List[Dict[str, str]] = []
+        for item in items:
+            kind = "闯关大将" if item["kind"] == "boss" else "守关大将"
+            stage_text = f"第 {item['stage']} 关" if item["kind"] == "boss" else "守关池"
+            if item["state"] == characters.STATE_UNSEEN and item["kind"] == "guard":
+                name = characters.GUARD_PLACEHOLDER
+            else:
+                name = item["name"]
+            rows.append(
+                {
+                    "name": name,
+                    "kind": f"{kind} · {stage_text}",
+                    "state": item["state_label"],
+                    "tier": journey.tier_label(item.get("best_tier")) if item.get("best_tier") else "—",
+                }
+            )
+        name_width = max(_display_width(row["name"]) for row in rows) + 2
+        kind_width = max(_display_width(row["kind"]) for row in rows) + 2
+        state_width = max(_display_width(row["state"]) for row in rows) + 2
+        for index, (row, item) in enumerate(zip(rows, items), start=1):
+            lines.append(
+                f"    {index:>2}. {_pad(row['name'], name_width)}"
+                f"{_pad(row['kind'], kind_width)}{_pad(row['state'], state_width)}{row['tier']}"
+            )
+            if item["state"] == characters.STATE_UNLOCKED:
+                lines.append(f"        《{item['title']}》{item['intro']}")
+            elif item["state"] == characters.STATE_COLLECTED:
+                lines.append(f"        待解锁：{item['intro_locked_hint']}")
+    cleared_lines = sum(
+        1 for sid in problem_gen.story_ids(only_available=True) if journey.is_story_unlocked(sid, progress.get_clear_map())
+    )
+    lines.append("")
+    lines.append(_rule("═"))
+    lines.append(
+        f"  已解锁故事线 {cleared_lines}/{len(problem_gen.story_ids(only_available=True))} 条"
+        f"　（通关记录 {len(clears)} 关）"
+    )
+    lines.append("  用法：python scripts/cli.py characters --story xiyou --unlocked-only")
+    lines.append(f"  {DISCLAIMER}")
+    print("\n".join(lines))
+    return 0
+
+
+def _stage_from_args(args: argparse.Namespace) -> Optional[int]:
+    """从参数里认出「关号」：``--stage 3`` 或 ``--level 3``（纯数字）。
+
+    带短横线的 ``--level 3-2`` / ``--level sanguo-3-2`` 是旧的难度档写法，这里返回
+    ``None``，让 ``play`` 走原来的单题模式——两种用法并存，互不干扰。
+    """
+    stage = getattr(args, "stage", None)
+    if stage:
+        return int(stage)
+    level = getattr(args, "level", None)
+    if level and STAGE_ARG_RE.match(str(level)):
+        return int(level)
+    return None
+
+
+def _play_stage(args: argparse.Namespace, sid: str, stage: int) -> int:
+    """闯关玩法：一次 run = 抽 1~3 题 + 计时 + 评品阶 + 揭守将 + 收角色卡。
+
+    Args:
+        args: 已解析的命令行参数（用到 ``--seed``）。
+        sid: 故事线 id。
+        stage: 关号 1~9。
+
+    Returns:
+        进程退出码：0 正常，2 未解锁。
+    """
+    clears = progress.get_clear_map()
+    story_info = journey.story_progress(sid, clears)
+    if not story_info["unlocked"]:
+        print(
+            f"《{story_info['name']}》尚未解锁，需先完成《{story_info['previous_name']}》全部 9 关。"
+        )
+        print("  看看进度：python scripts/cli.py stories")
+        return 2
+    if stage < 1 or stage > journey.STAGE_COUNT:
+        print(f"关号应为 1~{journey.STAGE_COUNT}，收到 {stage}。")
+        return 2
+    if not journey.is_stage_unlocked(sid, stage, clears):
+        print(f"第 {stage} 关尚未解锁（需先通关第 {stage - 1} 关）。")
+        print(f"  现在可以玩：python scripts/cli.py play --story {sid} --stage {stage - 1}")
+        return 2
+
+    name = journey.stage_name(sid, stage)
+    seed = str(args.seed) if getattr(args, "seed", None) else journey.make_seed(sid, stage)
+    plan = journey.draw_run(sid, stage, seed)
+    boss = characters.stage_boss(sid, stage)
+    problems: List[Dict[str, Any]] = []
+    for difficulty in plan.difficulties:
+        level_id = problem_gen.level_id_for(sid, stage, difficulty)
+        problems.append(
+            problem_gen.generate(level_id=level_id, salt=f"{plan.seed}-{difficulty}", story=sid)
+        )
+    budget = journey.budget_ms([int(problem["grade"]) for problem in problems])
+
+    print()
+    print(_rule("═"))
+    print(f"  第 {stage} 关 · {name}　（{story_info['name']}）")
+    print(f"  闯关大将：{boss['name']}《{boss['title']}》（闯关引导）")
+    print(f"  守关大将：{characters.GUARD_PLACEHOLDER}")
+    print(f"  场景：{plan.scene_text}")
+    print(f"  本次抽到 {len(problems)} 道题（第 {'、'.join(str(d) for d in plan.difficulties)} 难），开始计时。")
+    print(f"  种子：{plan.seed}（记下来可以重放同一场）")
+    print(_rule("═"))
+
+    run_id = f"{sid}-{stage}-{plan.seed}"
+    progress.create_run(
+        run_id=run_id,
+        story=sid,
+        level_id=journey.stage_key(sid, stage),
+        seed=plan.seed,
+        boss_id=str(boss["id"]),
+        guard_id=plan.guard_id,
+        scene_variant=plan.scene_text,
+    )
+
+    elapsed_ms = 0
+    used_hint = False
+    used_skip = False
+    retry_total = 0
+    correct_total = 0
+    cap_ms = journey.per_question_cap_seconds() * 1000
+
+    for index, problem in enumerate(problems, start=1):
+        print()
+        print(f"  ── 第 {index}/{len(problems)} 题 ──")
+        _print_problem(problem)
+        started = time.monotonic()  # 计时从题干渲染完成开始
+        hint_index = 0
+        tries = 0
+        answered = False
+        skipped = False
+        while True:
+            try:
+                raw = input("  你的答案 > ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                print("  已退出，本场作废：不计时、不计品阶、不收集角色。")
+                return 0
+            if raw.lower() in ("q", "quit", "exit"):
+                print("  已退出，本场作废：不计时、不计品阶、不收集角色。")
+                return 0
+            if raw.lower() in ("s", "skip"):
+                used_skip = True
+                skipped = True
+                elapsed_ms += min(int((time.monotonic() - started) * 1000), cap_ms)
+                print("  已跳过本题（这一场不计品阶，也不收角色卡）。")
+                print(f"  参考答案：{problem['answer']} {problem['unit']}")
+                print(verify.explain(problem))
+                break
+            if raw.lower() in ("h", "hint", "提示"):
+                if hint_index < min(MAX_HINTS, len(problem["hints"])):
+                    used_hint = True
+                    print(f"  提示 {hint_index + 1}：{problem['hints'][hint_index]}")
+                    hint_index += 1
+                else:
+                    print("  三级提示已经全部给出，试着自己写一写。")
+                continue
+            if not raw:
+                print("  请输入一个数值，或输入 h 求提示、s 跳过。")
+                continue
+
+            tries += 1
+            result = verify.check_answer(problem, raw)
+            progress.record_attempt(
+                level_id=problem["level_id"],
+                kp_id=problem["kp_id"],
+                user_answer=raw,
+                expected=result["expected"],
+                correct=bool(result["correct"]),
+                verify_source=str(result["verify_source"]),
+                story=sid,
+            )
+            if result["correct"]:
+                elapsed_ms += min(int((time.monotonic() - started) * 1000), cap_ms)
+                correct_total += 1
+                answered = True
+                print()
+                print(f"  正确！参考答案 {result['expected']} {problem['unit']}。")
+                print(f"  校验来源：{verify.verify_source_label(result['verify_source'])}")
+                print(verify.explain(problem))
+                break
+            retry_total += 1
+            print()
+            print(f"  第 {tries} 次还不对。{result['diagnosis']}")
+            if tries < MAX_TRIES:
+                print("  再想一想，也可以输入 h 求提示、s 跳过。")
+            elif tries == MAX_TRIES:
+                print("  参考答案先放在这儿，照着步骤走一遍，再自己填一次。")
+                print(f"  参考答案：{result['expected']}")
+        if skipped:
+            continue
+
+    tier = journey.grade_tier(elapsed_ms, budget, used_hint, used_skip, retry_total)
+    clean = journey.clean_run(used_hint, retry_total, used_skip)
+    ratio = journey.ratio_of(elapsed_ms, budget)
+
+    progress.finish_run(
+        run_id=run_id,
+        elapsed_ms=elapsed_ms,
+        budget_ms=budget,
+        question_count=len(problems),
+        correct_count=correct_total,
+        used_hint=used_hint,
+        used_skip=used_skip,
+        retry_count=retry_total,
+        tier=tier,
+        clean=clean,
+    )
+
+    accuracy = (correct_total / len(problems)) if problems else 0.0
+    stars = progress.clear_stage(
+        journey.stage_key(sid, stage), accuracy, story=sid, tier=tier
+    )
+    results = journey.collect(sid, journey.run_characters(plan), tier, clean)
+
+    guard = characters.guard_by_id(sid, plan.guard_id)
+    fresh_cards = [item for item in results if item["new"]]
+    fresh_intros = [item for item in results if item["intro_new"]]
+
+    def _names(items: List[Dict[str, Any]]) -> str:
+        names = []
+        for item in items:
+            char = characters.by_id(sid, item["id"])
+            names.append(char["name"] if char else item["id"])
+        return "、".join(names)
+
+    print()
+    print(_rule("═"))
+    print(
+        f"  结算：用时 {elapsed_ms / 1000:.1f} 秒 / 基准 {budget // 1000} 秒"
+        f"（ratio {ratio:.2f}）"
+    )
+    print(f"  品阶：{journey.tier_label(tier)}")
+    print(f"  守关大将揭晓：{guard['name']}《{guard['title']}》")
+    if tier:
+        print(
+            f"  角色卡 +{len(fresh_cards)}"
+            + (f"（{_names(fresh_cards)}）" if fresh_cards else "（这两张之前就收过）")
+            + f"｜介绍解锁 {len(fresh_intros)} 张"
+            + (f"（{_names(fresh_intros)}）" if fresh_intros else "")
+        )
+    else:
+        print("  角色卡 +0（跳过过题目，本场不收卡）｜介绍解锁 0 张")
+    print(f"  通关：第 {stage} 关 {'★' * stars}{'☆' * (3 - stars)}")
+    print(f"  说明：{journey.load_rules().get('transition_note', '')}")
+    updated = progress.get_clear_map()
+    cleared = journey.cleared_stage_count(sid, updated)
+    unlocked_stage = cleared + 1 if cleared < journey.STAGE_COUNT else journey.STAGE_COUNT
+    print(f"  {story_info['name']}：已通关 {cleared}/{journey.STAGE_COUNT} 关")
+    if cleared < journey.STAGE_COUNT:
+        print(f"  下一关（第 {unlocked_stage} 关）已解锁：python scripts/cli.py play --story {sid} --stage {unlocked_stage}")
+    else:
+        print("  这条线 9 关走完了，可以看看下一条线解锁了没有：python scripts/cli.py stories")
+    print(f"  {DISCLAIMER}")
+    print(_rule("═"))
+    return 0
+
+
 def cmd_play(args: argparse.Namespace) -> int:
-    """交互式答题。"""
+    """交互式答题：``--level 3`` 走闯关玩法，``--level 3-2`` 走旧的单题模式。"""
     count = max(1, int(args.count))
     level_id: Optional[str] = args.level
     story = getattr(args, "story", None)
     sid = str(story or problem_gen.default_story())
+
+    stage = _stage_from_args(args)
+    if stage is not None:
+        return _play_stage(args, sid, stage)
+
     problems: List[Dict[str, Any]] = []
 
     if level_id:
@@ -498,14 +821,31 @@ def build_parser() -> argparse.ArgumentParser:
     stories = sub.add_parser("stories", help="列出故事线注册表（含未上线）")
     stories.set_defaults(func=cmd_stories)
 
-    play = sub.add_parser("play", help="玩一关（出题 → 提示 → 作答 → 校验 → 讲解）")
+    play = sub.add_parser(
+        "play",
+        help="玩一关：--level 3 进入第 3 关（闯关玩法），--level 3-2 玩一道题（旧行为）",
+    )
     add_story(play, f"选择故事线，默认 {problem_gen.default_story()}")
-    play.add_argument("--level", default=None, help="关卡号，如 3-2 或 sanguo-3-2；不填则随机")
+    play.add_argument(
+        "--level",
+        default=None,
+        help="关号（如 3，闯关玩法）或 关卡-难度（如 3-2、sanguo-3-2，旧的单题模式）",
+    )
+    play.add_argument(
+        "--stage", type=int, default=None, choices=list(range(1, 10)), help="关号 1~9（闯关玩法）"
+    )
     play.add_argument("--grade", type=int, default=None, choices=[3, 4, 5, 6], help="按年级随机出题")
     play.add_argument("--kp", default=None, help="按知识点出题，如 g3_mul_basic")
     play.add_argument("--count", type=int, default=1, help="连续出几题，默认 1")
-    play.add_argument("--seed", default=None, help="随机种子，便于复现同一道题")
+    play.add_argument("--seed", default=None, help="随机种子，便于复现同一场/同一道题")
     play.set_defaults(func=cmd_play)
+
+    chars = sub.add_parser("characters", help="角色图鉴：每条线 14 名角色的三种状态")
+    add_story(chars, "只看某条故事线的角色；不填则逐条列出")
+    chars.add_argument(
+        "--unlocked-only", action="store_true", help="只列出介绍已解锁的角色"
+    )
+    chars.set_defaults(func=cmd_characters)
 
     wrongbook = sub.add_parser("wrongbook", help="查看错题本")
     add_story(wrongbook, "只看某条故事线的错题；不填则全量汇总")

@@ -1,0 +1,30 @@
+{
+  "note": "闯关系统的规则参数（唯一真相源 docs/SYSTEM_RULES.md 第六、九节）。CLI 与演示页都读这一份：demo 由 scripts/export_demo_bank.py 原样内联，保证两端判定完全一致。改这里等于改规则，请先改文档。",
+  "question_count_weights": {
+    "1": 30,
+    "2": 40,
+    "3": 30
+  },
+  "base_seconds_by_grade": {
+    "3": 45,
+    "4": 60,
+    "5": 75,
+    "6": 90
+  },
+  "per_question_cap_seconds": 600,
+  "tier_thresholds": {
+    "gold": 0.6,
+    "silver": 1.0
+  },
+  "hint_caps_tier": "silver",
+  "retry_silver_threshold": 3,
+  "tier_order": {
+    "gold": 3,
+    "silver": 2,
+    "bronze": 1
+  },
+  "stage_count": 9,
+  "difficulty_count": 9,
+  "scene_variant_note": "场景文本 = 场景修饰 + 该关的地点。修饰语以「的/时/日/前/后」结尾；地点里已含「的」时改用逗号连接，避免出现「清晨的五行山下的路口」这种双重定语。",
+  "transition_note": "品阶只看用时，不看对错次数；用提示最高白银，跳过不计品阶。"
+}

@@ -1,0 +1,150 @@
+{
+  "story": "zhenghe",
+  "note": "郑和线取自郑和下西洋的史料记载（历史事实，公有领域）。14 名角色都是船队里的真实职司（正使、火长、舵手等），只写分工、计量与记账，不写任何冲突或超自然内容。",
+  "stage_bosses": {
+    "1": "zhenghe_zhengshi",
+    "2": "zhenghe_fushi",
+    "3": "zhenghe_chuanzhu",
+    "4": "zhenghe_liangguan",
+    "5": "zhenghe_jiangshi",
+    "6": "zhenghe_huozhang",
+    "7": "zhenghe_duoshou",
+    "8": "zhenghe_tongshi",
+    "9": "zhenghe_yishi"
+  },
+  "guard_pool": [
+    "zhenghe_zhangfang",
+    "zhenghe_fanjiang",
+    "zhenghe_maojiang",
+    "zhenghe_shuishouzhang",
+    "zhenghe_cangli"
+  ],
+  "characters": [
+    {
+      "id": "zhenghe_zhengshi",
+      "name": "正使",
+      "kind": "boss",
+      "stage": 1,
+      "title": "启航前的总账人",
+      "intro": "启航前他要把册子核对一遍：几条船、多少人、多少袋口粮，一行一行对。他说出海的账算在前头，路上才不用慌着补；哪一行空着，他就站在码头等，等到填上为止。",
+      "intro_locked_hint": "干净通关第 1 关，看看启航前他要对哪几行数。"
+    },
+    {
+      "id": "zhenghe_fushi",
+      "name": "副使",
+      "kind": "boss",
+      "stage": 2,
+      "title": "减载时的称重人",
+      "intro": "装得太满船就吃水深，他一样一样搬下来称：搬走多少、还剩多少，边称边报，直到吃水线回到标记上。他说减载不是随便扔东西，得先算清哪几样最重，再决定先搬谁。",
+      "intro_locked_hint": "干净通关第 2 关，问他怎么知道该搬下多少。"
+    },
+    {
+      "id": "zhenghe_chuanzhu",
+      "name": "船主",
+      "kind": "boss",
+      "stage": 3,
+      "title": "分船时的配载人",
+      "intro": "分船时他按舱算：一条船能装几舱、每舱多少件，装满了画个勾。他说配得均匀，船稳，人也省力；要是前舱塞满后舱空着，船头就抬得太高，走起来费劲。",
+      "intro_locked_hint": "干净通关第 3 关，看他怎么给每舱画上那个勾。"
+    },
+    {
+      "id": "zhenghe_liangguan",
+      "name": "粮官",
+      "kind": "boss",
+      "stage": 4,
+      "title": "粮舱门口的按份发",
+      "intro": "发口粮他按人头：一人一份，十人十份，先按船分堆再发。他说按堆发比按人发快，还不容易数错；发完再让每条船报一遍数，加起来跟总数对上才收工。",
+      "intro_locked_hint": "干净通关第 4 关，学学他为什么先按船分成堆。"
+    },
+    {
+      "id": "zhenghe_jiangshi",
+      "name": "匠师",
+      "kind": "boss",
+      "stage": 5,
+      "title": "淡水舱的换算人",
+      "intro": "淡水按缸记，喝的时候按碗算。他记得一缸多少碗，一船人一天喝多少碗，剩下的日子一除就知道还能撑几天。他说这个数要天天算，越早发现不够，越来得及省。",
+      "intro_locked_hint": "干净通关第 5 关，跟他算算淡水还能撑几天。"
+    },
+    {
+      "id": "zhenghe_huozhang",
+      "name": "火长",
+      "kind": "boss",
+      "stage": 6,
+      "title": "横渡时的记程人",
+      "intro": "他把一昼夜分成若干更，每过一更就在木牌上刻一道，刻满一片就知道走了多少程。他说海上没有路标，只有刻痕；刻痕不会说谎，回到岸上一数，就知道这一趟走了多远。",
+      "intro_locked_hint": "干净通关第 6 关，听听他木牌上的刻痕怎么数。"
+    },
+    {
+      "id": "zhenghe_duoshou",
+      "name": "舵手",
+      "kind": "boss",
+      "stage": 7,
+      "title": "按比例轮班的人",
+      "intro": "轮班他按人数分：三班倒就三人一组，六个人正好两组。人一多，他就重算一遍，谁也不会多熬一班。他说分组要整除，除不尽就留一组人短一点，换个时段补回来。",
+      "intro_locked_hint": "干净通关第 7 关，看六个人怎么排成两班。"
+    },
+    {
+      "id": "zhenghe_tongshi",
+      "name": "通事",
+      "kind": "boss",
+      "stage": 8,
+      "title": "风信台下的记录员",
+      "intro": "他每天记风向和时辰，七日成一行，三十天就是三十行。记满一个月，他把每行的开头对齐，三十行一数，哪几天风向最顺就出来了。他说单个日子看不出规律，排成行列，规律自己会跳出来。",
+      "intro_locked_hint": "干净通关第 8 关，看他怎么把七天的风记成一行。"
+    },
+    {
+      "id": "zhenghe_yishi",
+      "name": "医士",
+      "kind": "boss",
+      "stage": 9,
+      "title": "互市时的比价人",
+      "intro": "互市时两边用不同的秤和钱，他先换成同一单位再比：这边一担抵那边多少，写清了才成交。他说单位不统一，比价就是白比；先换成一样的，再说哪边划算，才不算糊涂账。",
+      "intro_locked_hint": "干净通关第 9 关，听他说说单位不统一会怎样。"
+    },
+    {
+      "id": "zhenghe_zhangfang",
+      "name": "账房",
+      "kind": "guard",
+      "stage": null,
+      "title": "舱里的流水账",
+      "intro": "他的账按日子排：一天一页，进了多少、出了多少，写在同一行。月底把每页的末行抄成一张总表，数目一目了然。他说一张总表顶三十页，看总数不用一页页翻。",
+      "intro_locked_hint": "干净通关时遇上他，看看那张抄出来的总表。"
+    },
+    {
+      "id": "zhenghe_fanjiang",
+      "name": "帆匠",
+      "kind": "guard",
+      "stage": null,
+      "title": "缝帆时的计方人",
+      "intro": "一面帆要几幅布，他先量宽再量高，算出要几幅，缝完在角上写个数字。他说写上数字，下次照着做就不用重算；数字比记忆牢，传给别人也不会走样。",
+      "intro_locked_hint": "干净通关时遇上他，算算一面帆要几幅布。"
+    },
+    {
+      "id": "zhenghe_maojiang",
+      "name": "锚匠",
+      "kind": "guard",
+      "stage": null,
+      "title": "锚链上的记节人",
+      "intro": "他在锚链上每隔一段做一处记号，下锚时数记号就知道放了多少。他说数得清，起锚才不费劲；记号做在链上，谁去数都一样，不用凭手感猜。",
+      "intro_locked_hint": "干净通关时遇上他，看看锚链上的记号怎么数。"
+    },
+    {
+      "id": "zhenghe_shuishouzhang",
+      "name": "水手长",
+      "kind": "guard",
+      "stage": null,
+      "title": "甲板上的点名员",
+      "intro": "每天早起点一次名，他把人按班组站好，一组一组报数。报完在木板上写下每组的数，加起来正好是全体。他说一组一组数比几百人一起数快得多，还不会重复算。",
+      "intro_locked_hint": "干净通关时遇上他，看他怎么一组一组报数。"
+    },
+    {
+      "id": "zhenghe_cangli",
+      "name": "仓吏",
+      "kind": "guard",
+      "stage": null,
+      "title": "货舱里的编号人",
+      "intro": "他把货舱分成格，每格挂一个木牌，写着第几格第几件。取货时照牌去找，不用一件件翻。他说格子和牌子是一套，写在牌上的数跟舱里的货要对得上，缺一件也能立刻发现。",
+      "intro_locked_hint": "干净通关时遇上他，看看那些木牌是怎么编号的。"
+    }
+  ]
+}

@@ -511,6 +511,18 @@ def resolve_level(
     )
 
 
+def level_id_for(story: Optional[str], stage: int, difficulty: int) -> str:
+    """按约定拼出 ``level_id``：默认线是 ``3-2``，其他线是 ``sanguo-3-2``。
+
+    闯关系统按「关号 + 难度档」出题时用它落成具体的 ``level_id``，
+    命名规则与 ``data/storylines/*.json`` 里的既有写法完全一致（自检里有断言）。
+    """
+    sid = str(story or default_story())
+    if sid == default_story():
+        return f"{int(stage)}-{int(difficulty)}"
+    return f"{sid}-{int(stage)}-{int(difficulty)}"
+
+
 def get_level(level_id: str, story: Optional[str] = None) -> Dict[str, Any]:
     """按 ``level_id`` 取出「关卡 + 这一难」的合并信息（支持跨故事线）。
 

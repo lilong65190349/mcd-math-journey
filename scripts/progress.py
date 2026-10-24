@@ -11,6 +11,16 @@
 ``attempts`` 与 ``stage_clear`` 各有一列 ``story``（默认 ``'xiyou'``），记录这次作答属于哪条线。
 老版本数据库（没有该列）在 :func:`connect` 时会自动迁移：**先复制成 ``progress.db.bak``，
 再 ALTER TABLE 补列**，绝不删库重建，已有进度一条不丢。
+
+闯关系统（v2.0）
+----------------
+新增两张表（都是 ``CREATE TABLE IF NOT EXISTS``，对老库零风险）：
+
+* ``stage_runs``：一次「进关 → 抽题 → 全部答对」的完整记录（种子 / 用时 / 基准 / 品阶 / 谁守的关）；
+  中途退出或刷新的 run 停在 ``finished_at IS NULL``，统计时视为作废；
+* ``collection``：角色卡（``best_tier`` 只升不降，``intro_unlocked`` 只解锁不回锁）。
+
+``stage_clear`` 另补一列 ``tier``（老库同样按「缺了才加」处理），记录该关历史最高品阶。
 """
 
 from __future__ import annotations
@@ -51,11 +61,48 @@ CREATE TABLE IF NOT EXISTS stage_clear (
     level_id   TEXT PRIMARY KEY,
     story      TEXT    NOT NULL DEFAULT 'xiyou',
     cleared_at TEXT    NOT NULL,
-    stars      INTEGER NOT NULL DEFAULT 1
+    stars      INTEGER NOT NULL DEFAULT 1,
+    tier       TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_attempts_kp ON attempts(kp_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_level ON attempts(level_id);
+
+-- 单次挑战（run）：一次「进关 → 抽题 → 全部答对」的完整记录。
+-- 计时、品阶、收集都以 run 为最小单位；中途退出的 run 永远不会写 finished_at。
+CREATE TABLE IF NOT EXISTS stage_runs (
+    run_id         TEXT PRIMARY KEY,
+    story          TEXT    NOT NULL,
+    level_id       TEXT    NOT NULL,
+    seed           TEXT    NOT NULL,
+    started_at     TEXT    NOT NULL,
+    finished_at    TEXT,
+    elapsed_ms     INTEGER NOT NULL DEFAULT 0,
+    budget_ms      INTEGER NOT NULL DEFAULT 0,
+    question_count INTEGER NOT NULL DEFAULT 0,
+    correct_count  INTEGER NOT NULL DEFAULT 0,
+    used_hint      INTEGER NOT NULL DEFAULT 0,
+    used_skip      INTEGER NOT NULL DEFAULT 0,
+    retry_count    INTEGER NOT NULL DEFAULT 0,
+    tier           TEXT,
+    clean          INTEGER NOT NULL DEFAULT 0,
+    boss_id        TEXT,
+    guard_id       TEXT,
+    scene_variant  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_runs_story_level ON stage_runs(story, level_id);
+
+-- 角色收集：收卡来自「通关」，介绍解锁来自「干净通关」，两者递进且不回锁。
+CREATE TABLE IF NOT EXISTS collection (
+    story             TEXT    NOT NULL,
+    char_id           TEXT    NOT NULL,
+    first_seen_at     TEXT    NOT NULL,
+    best_tier         TEXT,
+    intro_unlocked    INTEGER NOT NULL DEFAULT 0,
+    intro_unlocked_at TEXT,
+    PRIMARY KEY (story, char_id)
+);
 """
 
 _STORY_TABLES = ("attempts", "stage_clear")
@@ -112,6 +159,9 @@ def _migrate(connection: sqlite3.Connection, path: Path) -> None:
             )
     # story 索引必须等列补好之后再建，否则老库会在建索引这一步直接报错。
     connection.execute("CREATE INDEX IF NOT EXISTS idx_attempts_story ON attempts(story)")
+    # 品阶列同样按「缺了才补」处理：老库的 stage_clear 没有 tier，补上后默认 NULL（不计品阶）。
+    if "tier" not in _table_columns(connection, "stage_clear"):
+        connection.execute("ALTER TABLE stage_clear ADD COLUMN tier TEXT")
     connection.commit()
 
 
@@ -179,6 +229,7 @@ def clear_stage(
     accuracy: float,
     story: str = DEFAULT_STORY,
     db_path: Optional[Path] = None,
+    tier: Optional[str] = None,
 ) -> int:
     """标记一个关卡通关，并按正确率给星。
 
@@ -187,6 +238,8 @@ def clear_stage(
         accuracy: 该关正确率（0~1）。
         story: 故事线 id，默认 ``xiyou``。
         db_path: 自定义数据库路径。
+        tier: 本次品阶（``gold`` / ``silver`` / ``bronze`` / ``None``）。
+            **只升不降**：重玩拿到的品阶更低时保留历史最高，符合文档 6.5。
 
     Returns:
         星级 1~3。
@@ -194,11 +247,17 @@ def clear_stage(
     ratio = max(0.0, min(1.0, float(accuracy)))
     stars = 3 if ratio >= 0.9 else (2 if ratio >= 0.7 else 1)
     with connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT tier FROM stage_clear WHERE level_id = ?", (str(level_id),)
+        ).fetchone()
+        previous = str(row["tier"]) if row and row["tier"] else None
+        kept = _best_tier(previous, tier)
         connection.execute(
-            "INSERT INTO stage_clear (level_id, story, cleared_at, stars) VALUES (?, ?, ?, ?) "
+            "INSERT INTO stage_clear (level_id, story, cleared_at, stars, tier) VALUES (?, ?, ?, ?, ?) "
             "ON CONFLICT(level_id) DO UPDATE SET story=excluded.story, "
-            "cleared_at=excluded.cleared_at, stars=MAX(stage_clear.stars, excluded.stars)",
-            (str(level_id), str(story or DEFAULT_STORY), _now(), stars),
+            "cleared_at=excluded.cleared_at, stars=MAX(stage_clear.stars, excluded.stars), "
+            "tier=excluded.tier",
+            (str(level_id), str(story or DEFAULT_STORY), _now(), stars, kept),
         )
         connection.commit()
     return stars
@@ -273,6 +332,247 @@ def get_stage_clears(
             "story": str(row["story"] or DEFAULT_STORY),
             "cleared_at": str(row["cleared_at"]),
             "stars": int(row["stars"]),
+        }
+        for row in rows
+    }
+
+
+def _best_tier(current: Optional[str], candidate: Optional[str]) -> Optional[str]:
+    """两个品阶取更优（判定口径与 ``journey.grade_tier`` 同源，不另写一套）。"""
+    if not current:
+        return candidate
+    if not candidate:
+        return current
+    try:
+        import journey
+
+        return journey.best_tier(current, candidate)
+    except Exception:  # pragma: no cover - 规则文件坏掉时退化成「以新值为准」
+        return candidate
+
+
+def get_clear_map(
+    story: Optional[str] = None, db_path: Optional[Path] = None
+) -> Dict[str, Dict[str, Any]]:
+    """给解锁判定用的通关表：``{stage_key: {"cleared", "best_tier", "stars", "story"}}``。
+
+    只包含 ``stage_clear`` 里真正存在的记录，所以「有 ``stage_runs`` 记录但没通关」的关
+    不会出现在这里——这正是文档 13.1 要求的那种边界。
+    """
+    sql = "SELECT level_id, story, cleared_at, stars, tier FROM stage_clear"
+    params: List[Any] = []
+    if story:
+        sql += " WHERE story = ?"
+        params.append(str(story))
+    with connect(db_path) as connection:
+        rows = connection.execute(sql, params).fetchall()
+    return {
+        str(row["level_id"]): {
+            "cleared": True,
+            "story": str(row["story"] or DEFAULT_STORY),
+            "best_tier": (str(row["tier"]) if row["tier"] else None),
+            "stars": int(row["stars"]),
+            "cleared_at": str(row["cleared_at"]),
+        }
+        for row in rows
+    }
+
+
+# ---------------------------------------------------------------------------
+# 挑战（run）与角色收集
+# ---------------------------------------------------------------------------
+
+
+def create_run(
+    run_id: str,
+    story: str,
+    level_id: str,
+    seed: str,
+    boss_id: str = "",
+    guard_id: str = "",
+    scene_variant: str = "",
+    db_path: Optional[Path] = None,
+) -> None:
+    """开一次挑战（只写开场信息，计时与结果等结算时再补）。
+
+    中途退出 / 刷新页面时这条记录会停在「没有 ``finished_at``」的状态，
+    统计时视为作废——不会计入品阶，也不会触发收集。
+    """
+    with connect(db_path) as connection:
+        connection.execute(
+            "INSERT OR REPLACE INTO stage_runs "
+            "(run_id, story, level_id, seed, started_at, boss_id, guard_id, scene_variant) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                str(run_id),
+                str(story),
+                str(level_id),
+                str(seed),
+                _now(),
+                str(boss_id),
+                str(guard_id),
+                str(scene_variant),
+            ),
+        )
+        connection.commit()
+
+
+def finish_run(
+    run_id: str,
+    elapsed_ms: int,
+    budget_ms: int,
+    question_count: int,
+    correct_count: int,
+    used_hint: bool = False,
+    used_skip: bool = False,
+    retry_count: int = 0,
+    tier: Optional[str] = None,
+    clean: bool = False,
+    db_path: Optional[Path] = None,
+) -> None:
+    """结算一次挑战：补齐用时、基准、计数、品阶与是否干净通关。"""
+    with connect(db_path) as connection:
+        connection.execute(
+            "UPDATE stage_runs SET finished_at = ?, elapsed_ms = ?, budget_ms = ?, "
+            "question_count = ?, correct_count = ?, used_hint = ?, used_skip = ?, "
+            "retry_count = ?, tier = ?, clean = ? WHERE run_id = ?",
+            (
+                _now(),
+                int(elapsed_ms),
+                int(budget_ms),
+                int(question_count),
+                int(correct_count),
+                1 if used_hint else 0,
+                1 if used_skip else 0,
+                int(retry_count),
+                (str(tier) if tier else None),
+                1 if clean else 0,
+                str(run_id),
+            ),
+        )
+        connection.commit()
+
+
+def get_runs(
+    story: Optional[str] = None,
+    finished_only: bool = True,
+    db_path: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
+    """取挑战记录（默认只取已结算的，按开始时间倒序）。"""
+    sql = "SELECT * FROM stage_runs"
+    clauses: List[str] = []
+    params: List[Any] = []
+    if story:
+        clauses.append("story = ?")
+        params.append(str(story))
+    if finished_only:
+        clauses.append("finished_at IS NOT NULL")
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    sql += " ORDER BY started_at DESC, run_id DESC"
+    with connect(db_path) as connection:
+        rows = connection.execute(sql, params).fetchall()
+    return [dict(row) for row in rows]
+
+
+def upsert_collection(
+    story: str,
+    char_ids: List[str],
+    tier: Optional[str],
+    clean: bool,
+    db_path: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
+    """把出场角色写进角色库，返回**本次新增**的卡片信息。
+
+    规则（文档第七节）：
+    * 通关（有品阶）才收卡；跳过没有品阶，不收卡，也不写库；
+    * ``best_tier`` 只升不降；
+    * ``intro_unlocked`` 一旦为真就不再回锁，只有「干净通关」才置 1。
+
+    Args:
+        story: 故事线 id。
+        char_ids: 本次出场的角色 id（闯关大将 + 本场守关大将）。
+        tier: 本次品阶；``None`` 表示不收卡。
+        clean: 是否干净通关。
+        db_path: 自定义数据库路径。
+
+    Returns:
+        每个角色一条：``{"id", "new", "best_tier", "intro_unlocked", "intro_new"}``。
+    """
+    if not tier:
+        return []
+    results: List[Dict[str, Any]] = []
+    now = _now()
+    with connect(db_path) as connection:
+        for char_id in char_ids:
+            row = connection.execute(
+                "SELECT best_tier, intro_unlocked FROM collection WHERE story = ? AND char_id = ?",
+                (str(story), str(char_id)),
+            ).fetchone()
+            is_new = row is None
+            previous_tier = str(row["best_tier"]) if row and row["best_tier"] else None
+            intro_before = int(row["intro_unlocked"]) if row else 0
+            kept = _best_tier(previous_tier, tier)
+            intro_after = 1 if (intro_before or clean) else 0
+            if is_new:
+                connection.execute(
+                    "INSERT INTO collection (story, char_id, first_seen_at, best_tier, "
+                    "intro_unlocked, intro_unlocked_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        str(story),
+                        str(char_id),
+                        now,
+                        kept,
+                        intro_after,
+                        now if intro_after else None,
+                    ),
+                )
+            else:
+                connection.execute(
+                    "UPDATE collection SET best_tier = ?, intro_unlocked = ?, "
+                    "intro_unlocked_at = COALESCE(intro_unlocked_at, ?) "
+                    "WHERE story = ? AND char_id = ?",
+                    (
+                        kept,
+                        intro_after,
+                        now if (intro_after and not intro_before) else None,
+                        str(story),
+                        str(char_id),
+                    ),
+                )
+            results.append(
+                {
+                    "id": str(char_id),
+                    "new": is_new,
+                    "best_tier": kept,
+                    "intro_unlocked": bool(intro_after),
+                    "intro_new": bool(intro_after and not intro_before),
+                }
+            )
+        connection.commit()
+    return results
+
+
+def get_collection(
+    story: Optional[str] = None, db_path: Optional[Path] = None
+) -> Dict[str, Dict[str, Any]]:
+    """取角色收集表：``{char_id: {"best_tier", "intro_unlocked", "first_seen_at", "story"}}``。
+
+    不传 ``story`` 时把各线的记录合在一起（角色 id 本身带线前缀，不会撞车）。
+    """
+    sql = "SELECT story, char_id, first_seen_at, best_tier, intro_unlocked FROM collection"
+    params: List[Any] = []
+    if story:
+        sql += " WHERE story = ?"
+        params.append(str(story))
+    with connect(db_path) as connection:
+        rows = connection.execute(sql, params).fetchall()
+    return {
+        str(row["char_id"]): {
+            "story": str(row["story"]),
+            "best_tier": (str(row["best_tier"]) if row["best_tier"] else None),
+            "intro_unlocked": int(row["intro_unlocked"]),
+            "first_seen_at": str(row["first_seen_at"]),
         }
         for row in rows
     }

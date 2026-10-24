@@ -1,0 +1,150 @@
+{
+  "story": "shuihu",
+  "note": "水浒线的 14 名角色取自《水浒传》原著（公有领域）。只写分粮、记账、称量、排班等日常分工，不涉及任何冲突情节、诉讼或身份评价。",
+  "stage_bosses": {
+    "1": "shuihu_songjiang",
+    "2": "shuihu_lujunyi",
+    "3": "shuihu_wuyong",
+    "4": "shuihu_gongsunsheng",
+    "5": "shuihu_guansheng",
+    "6": "shuihu_linchong",
+    "7": "shuihu_qinming",
+    "8": "shuihu_huyanzhuo",
+    "9": "shuihu_huarong"
+  },
+  "guard_pool": [
+    "shuihu_chaijin",
+    "shuihu_liying",
+    "shuihu_zhutong",
+    "shuihu_luzhishen",
+    "shuihu_wusong"
+  ],
+  "characters": [
+    {
+      "id": "shuihu_songjiang",
+      "name": "宋江",
+      "kind": "boss",
+      "stage": 1,
+      "title": "分粮时的主持人",
+      "intro": "他分东西先问一句「一共多少人」，再当着大家的面把总数报出来，然后一份一份往下分，谁都能跟着一起数。分到最后他会把剩下的举起来给大家看，说明白为什么剩这些。",
+      "intro_locked_hint": "干净通关第 1 关，看他怎么让所有人都数得清。"
+    },
+    {
+      "id": "shuihu_lujunyi",
+      "name": "卢俊义",
+      "kind": "boss",
+      "stage": 2,
+      "title": "仓门前的记账人",
+      "intro": "开仓那天他站在门口记账：进去几个人、搬出几袋，一笔一笔写。他说仓门一开，账也得跟着开，不然回头就说不清了；晚上收工把进出的两列一减，就知道仓里还剩多少。",
+      "intro_locked_hint": "干净通关第 2 关，看看他仓门口那本账。"
+    },
+    {
+      "id": "shuihu_wuyong",
+      "name": "吴用",
+      "kind": "boss",
+      "stage": 3,
+      "title": "料场上的算料人",
+      "intro": "他算料先算一条船用多少块板，再乘船的条数。木板堆得像小山，他只要数目对得上，就知道够不够用。他说先乘后加，比一块一块数快；算完在心里再过一遍，两遍一样才放心。",
+      "intro_locked_hint": "干净通关第 3 关，跟他算算十条船要多少块板。"
+    },
+    {
+      "id": "shuihu_gongsunsheng",
+      "name": "公孙胜",
+      "kind": "boss",
+      "stage": 4,
+      "title": "排班用的记时人",
+      "intro": "他排班用刻漏：一个时辰一格，一天共十二格。谁当值、当几格，都写在木牌上挂着，交班时对一对就行。他说格子填满了，一天就排完了，谁多谁少一眼看得出来。",
+      "intro_locked_hint": "干净通关第 4 关，听他讲十二格是怎么排的。"
+    },
+    {
+      "id": "shuihu_guansheng",
+      "name": "关胜",
+      "kind": "boss",
+      "stage": 5,
+      "title": "米行里的看秤人",
+      "intro": "他称米只信秤星：一斗一斗称，称完把斗数记在墙上。他说眼睛看不出一斗差多少，秤星看得出来；称完还要把斗数乘回去，看跟总数对不对得上。",
+      "intro_locked_hint": "干净通关第 5 关，学学他为什么只信秤星。"
+    },
+    {
+      "id": "shuihu_linchong",
+      "name": "林冲",
+      "kind": "boss",
+      "stage": 6,
+      "title": "传信时的编号人",
+      "intro": "他送信先给每封编个号，按远近排好次序，送完一封划掉一封。他说信多不怕，怕的是不知道哪封还没送到；一条线走下来，划掉的和没划掉的一目了然，一百封数一遍就对上了。",
+      "intro_locked_hint": "干净通关第 6 关，看看他怎么给信编号、划号。"
+    },
+    {
+      "id": "shuihu_qinming",
+      "name": "秦明",
+      "kind": "boss",
+      "stage": 7,
+      "title": "分配时的核对人",
+      "intro": "他分完东西总要回头核一遍：分出去多少、还剩多少，加起来得跟原来一样。差一件，他就从头再点。他说加法最能查错，分出去的加上剩下的，等于原来的总数，这才算分完。",
+      "intro_locked_hint": "干净通关第 7 关，跟他把分出去的加回来对一遍。"
+    },
+    {
+      "id": "shuihu_huyanzhuo",
+      "name": "呼延灼",
+      "kind": "boss",
+      "stage": 8,
+      "title": "排座次的人",
+      "intro": "排座次他不看嗓门大小，只按先来后到编号：一号坐哪儿、二号坐哪儿，画成一张图贴在墙上，谁都能看明白。他说排好了照图找位子，比挨个问快得多。",
+      "intro_locked_hint": "干净通关第 8 关，看看墙上那张座位图。"
+    },
+    {
+      "id": "shuihu_huarong",
+      "name": "花荣",
+      "kind": "boss",
+      "stage": 9,
+      "title": "集市上的比价人",
+      "intro": "他采买先跑三家，把价钱一一记在纸上再比：同样的东西哪家便宜就买哪家的，一趟下来能省出好几文。他说比价要先看份量，一斤跟一斤比，半斤跟半斤比，不然比出来是假的。",
+      "intro_locked_hint": "干净通关第 9 关，跟他跑三家比一比价钱。"
+    },
+    {
+      "id": "shuihu_chaijin",
+      "name": "柴进",
+      "kind": "guard",
+      "stage": null,
+      "title": "庄上待客的管事",
+      "intro": "他家来客多，备饭按人数算：一人一碗，多来一位就添一碗。他说先数人再下锅，不端错，也不剩饭；要是估着做，来的人少了要剩一锅，来的人多了又不够吃。",
+      "intro_locked_hint": "干净通关时遇上他，看他怎么按人数备饭。"
+    },
+    {
+      "id": "shuihu_liying",
+      "name": "李应",
+      "kind": "guard",
+      "stage": null,
+      "title": "账房里的总管",
+      "intro": "他管账用两本：一本记进，一本记出，月底把两本的差对上。对不上就从头翻，翻到对上为止。他说两本账就像两条路，走到同一个地方，才算没走岔。",
+      "intro_locked_hint": "干净通关时遇上他，看看那两本账怎么对上。"
+    },
+    {
+      "id": "shuihu_zhutong",
+      "name": "朱仝",
+      "kind": "guard",
+      "stage": null,
+      "title": "夜里巡街的班头",
+      "intro": "他巡夜按固定路线走：街口到桥头几百步，走完记一笔，一夜走四趟。他说路线走熟了，不看也知走到哪儿；四趟走完，天也差不多亮了，正好交班。",
+      "intro_locked_hint": "干净通关时遇上他，问他为什么一夜要记四笔。"
+    },
+    {
+      "id": "shuihu_luzhishen",
+      "name": "鲁智深",
+      "kind": "guard",
+      "stage": null,
+      "title": "搬货的大力士",
+      "intro": "他力气大，一次扛两袋，别人一次一袋。算得也快：二十袋要跑十趟，跑完自己在墙根画十道记号。他说跑一趟画一道，画满了就知道搬完了，不用回头再数一遍。",
+      "intro_locked_hint": "干净通关时遇上他，算算二十袋要跑几趟。"
+    },
+    {
+      "id": "shuihu_wusong",
+      "name": "武松",
+      "kind": "guard",
+      "stage": null,
+      "title": "山路上最稳的向导",
+      "intro": "他在景阳冈上走过很多回，哪段路陡、哪段路平都记在心里。他数过石阶一共三百六十级，说心里有数，脚下就稳。有人问他数这个干什么，他说知道还剩多少级，就不觉得累了。",
+      "intro_locked_hint": "干净通关时遇上他，问问他数石阶有什么用。"
+    }
+  ]
+}

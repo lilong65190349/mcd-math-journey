@@ -3,18 +3,22 @@
 为什么要有这个脚本
 ------------------
 演示页是**单文件、零外部依赖、双击可开**的：它不能 ``fetch('bank.json')``，
-所以题库必须内联在 HTML 里。手抄 45 道题既容易抄错，也没法和 Python 端出题逻辑保持一致。
+所以题库必须内联在 HTML 里。手抄题目既容易抄错，也没法和 Python 端出题逻辑保持一致。
 
 本脚本的做法：
 
-1. 用 ``problem_gen.generate()`` 为**每条 available 的故事线**各生成 9 道题
-   （每关取第 1 难，固定 seed，可复现）；
-2. 把题目投影成演示页需要的字段（``table`` / ``meta`` 等命名差异在这里抹平）；
-3. 写 ``demo/bank.json``（给自检用，人可读）；
-4. 把同一份数据压缩成一行注入 ``demo/index.html`` 的
+1. 用 ``problem_gen.generate()`` 为**每条 available 的故事线**生成 81 道题
+   （9 关 × 9 个难度档，固定 seed，可复现）——闯关系统一次要抽 1~3 题、且要求难度档
+   互不重复，所以演示页必须备齐每个难度档的题，不能只留第 1 难；
+2. 导出规则参数（``data/run_rules.json``）与角色库（``data/characters/*.json``），
+   让演示页与 CLI 用**同一份规则**判定品阶、同一份数据揭名；
+3. 导出每关的 10 条场景文本与**固定 seed 用例**（``vectors``）：演示页的抽样由 JS 独立
+   实现，自检用这批用例逐条比对「JS 抽到的」与「Python 抽到的」是否一致；
+4. 写 ``demo/bank.json``（给自检用，人可读）；
+5. 把同一份数据压缩成一行注入 ``demo/index.html`` 的
    ``/* @@BANK_START@@ */`` 与 ``/* @@BANK_END@@ */`` 之间。
 
-自检脚本会比对「注入的内容」与 ``bank.json`` 是否逐题一致，防止有人只改了其中一边。
+自检脚本会比对「注入的内容」与 ``bank.json`` 是否一致，防止有人只改了其中一边。
 
 用法::
 
@@ -32,6 +36,8 @@ from typing import Any, Dict, List
 if __package__ in (None, ""):  # pragma: no cover - 脚本运行路径
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import characters  # noqa: E402
+import journey  # noqa: E402
 import problem_gen  # noqa: E402
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
@@ -45,6 +51,9 @@ BANK_END = "/* @@BANK_END@@ */"
 CARE_NOTE: str = problem_gen.CARE_NOTE
 
 _DIAGNOSIS_ALIAS = {"average": "avg"}
+
+VECTOR_SEEDS: List[str] = ["vector-a", "vector-b", "vector-c"]
+"""固定用例的种子。两端一致性就靠这三条 × 5 线 × 9 关 = 135 条用例守住。"""
 
 
 def _num(value: Any) -> Any:
@@ -96,6 +105,7 @@ def project(problem: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "level_id": str(problem["level_id"]),
         "stage": int(problem["stage"]),
+        "difficulty": int(str(problem["level_id"]).split("-")[-1]),
         "stageName": str(problem["stage_name"]),
         "grade": int(problem["grade"]),
         "kp": str(problem["kp_name"]),
@@ -115,32 +125,102 @@ def project(problem: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _character_bank(sid: str) -> Dict[str, Dict[str, Any]]:
+    """导出某条线的角色表（只用 id 索引，方便演示页按 id 取）。"""
+    payload: Dict[str, Dict[str, Any]] = {}
+    for char in characters.all_characters(sid):
+        payload[str(char["id"])] = {
+            "id": str(char["id"]),
+            "name": str(char["name"]),
+            "kind": str(char["kind"]),
+            "stage": char.get("stage"),
+            "title": str(char.get("title")),
+            "intro": str(char.get("intro")),
+            "introHint": str(char.get("intro_locked_hint")),
+        }
+    return payload
+
+
+def _stage_bank(sid: str) -> List[Dict[str, Any]]:
+    """导出某条线的 9 关：关名、地点、10 条场景文本、闯关大将、守关池。"""
+    stages: List[Dict[str, Any]] = []
+    for stage in problem_gen.list_stages(sid):
+        number = int(stage["stage"])
+        stages.append(
+            {
+                "stage": number,
+                "name": str(stage["name"]),
+                "theme": str(stage["theme"]),
+                "scene": str(stage["scene"]),
+                "scenes": journey.stage_scenes(sid, number),
+                "gradeHint": int(stage["grade_hint"]),
+                "bossId": characters.stage_boss_id(sid, number),
+            }
+        )
+    return stages
+
+
 def build_bank() -> Dict[str, Any]:
-    """为每条 available 的故事线生成 9 道题（每关 1 道）。"""
+    """为每条 available 的故事线生成 9 关 × 9 难 = 81 道题，并附带规则、角色与固定用例。"""
     stories: List[Dict[str, Any]] = []
     bank: Dict[str, List[Dict[str, Any]]] = {}
+    stage_bank: Dict[str, List[Dict[str, Any]]] = {}
+    char_bank: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    guard_bank: Dict[str, List[str]] = {}
     default_id = problem_gen.default_story()
+    order = journey.storyline_order()
+
     for item in problem_gen.list_storylines(only_available=True):
         sid = item["id"]
         problems: List[Dict[str, Any]] = []
         for stage in problem_gen.list_stages(sid):
-            level_id = str(stage["levels"][0]["level_id"])
-            problem = problem_gen.generate(level_id=level_id, salt=f"demo-{sid}-{stage['stage']}")
-            problems.append(project(problem))
+            for level in stage["levels"]:
+                level_id = str(level["level_id"])
+                problem = problem_gen.generate(
+                    level_id=level_id, salt=f"demo-{sid}-{level_id}"
+                )
+                problems.append(project(problem))
         bank[sid] = problems
+        stage_bank[sid] = _stage_bank(sid)
+        char_bank[sid] = _character_bank(sid)
+        guard_bank[sid] = characters.guard_pool_ids(sid)
         stories.append(
             {
                 "id": sid,
                 "name": item["name"],
                 "subtitle": item["subtitle"],
-                "stageNames": [str(stage["name"]) for stage in problem_gen.list_stages(sid)],
+                "order": order.index(sid) + 1 if sid in order else 0,
                 "default": sid == default_id,
             }
         )
+
+    vectors: List[Dict[str, Any]] = []
+    for sid in [item["id"] for item in stories]:
+        for number in range(1, journey.STAGE_COUNT + 1):
+            for seed in VECTOR_SEEDS:
+                plan = journey.draw_run(sid, number, seed)
+                vectors.append(
+                    {
+                        "story": sid,
+                        "stage": number,
+                        "seed": seed,
+                        "sceneIndex": plan.scene_index,
+                        "sceneText": plan.scene_text,
+                        "guardId": plan.guard_id,
+                        "questionCount": plan.question_count,
+                        "difficulties": list(plan.difficulties),
+                    }
+                )
+
     return {
-        "version": "1.0.0",
+        "version": "2.0.0",
         "note": "由 scripts/export_demo_bank.py 生成，请勿手工编辑；改出题逻辑后重跑脚本即可。",
+        "rules": journey.load_rules(),
         "stories": stories,
+        "stages": stage_bank,
+        "characters": char_bank,
+        "guards": guard_bank,
+        "vectors": vectors,
         "bank": bank,
     }
 
@@ -166,8 +246,10 @@ def main() -> int:
     html = HTML_PATH.read_text(encoding="utf-8")
     HTML_PATH.write_text(inject(html, payload), encoding="utf-8")
     total = sum(len(items) for items in payload["bank"].values())
+    chars = sum(len(items) for items in payload["characters"].values())
     print(
-        f"题库已生成：{len(payload['bank'])} 条故事线 / {total} 道题 → "
+        f"题库已生成：{len(payload['bank'])} 条故事线 / {total} 道题 / "
+        f"{chars} 名角色 / {len(payload['vectors'])} 条固定用例 → "
         f"{BANK_PATH.relative_to(PROJECT_ROOT)}，并注入 demo/index.html"
     )
     return 0

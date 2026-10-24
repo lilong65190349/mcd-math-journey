@@ -6,12 +6,16 @@ README 第七节写的是「真实运行结果」，一旦出题模板、CLI 文
 文档就会悄悄失真——而且只有人肉复读才会发现。本脚本把这件事机器化：
 用文档里记录的固定 seed 重新跑一遍，与 README 代码块逐行 diff。
 
-除示例输出之外，还校验两件容易悄悄坏掉的事：
+除示例输出之外，还校验这些容易悄悄坏掉的事：
 
 1. **故事线完整性**：每条 ``available`` 的线必须 9 关 × 9 难 = 81 个 level，
    ``brief`` 非空且线内不重复，``kp_id`` 必须命中 ``data/curriculum.json``；
 2. **演示页题库一致性**：``demo/index.html`` 里内联的 BANK 必须与 ``demo/bank.json``
-   逐题一致（防止有人只改了一边）。
+   一致，且与「当前代码重新导出的结果」一致（405 道题 / 70 名角色 / 规则参数 / 固定用例）；
+3. **闯关规则**（``docs/SYSTEM_RULES.md`` 第十三节）：解锁链、故事线链、1000 个 seed 的
+   随机覆盖、可复现、品阶边界、收集与介绍解锁；
+4. **两端一致**：``bank.vectors`` 里 135 条固定用例，用 ``journey.draw_run`` 重算必须逐条相同；
+5. **红线**：70 条角色介绍 + 50 条场景修饰语不得出现暴力 / 迷信 / 竞品 / 消费引导词。
 
 比对口径（重要）
 ----------------
@@ -61,6 +65,16 @@ EXPECTED_CORRECT: int = 6
 REPORT_RE = re.compile(
     r"共作答 \*\*(\d+)\*\* 题，答对 \*\*(\d+)\*\* 题，正确率 \*\*([\d.]+)%\*\*"
 )
+
+RED_LINE_RE = re.compile(
+    "斩|杀|血|尸|造反|官府|招安|落草|作法|法术|神力|显灵|天意|神机妙算|借东风|"
+    "长征|红军|革命|解放|军粮|粮草|肯德基|KFC|必胜客|华莱士|"
+    "多吃|多买|囤券|越买越省|必买"
+)
+"""角色文案与场景文案的红线词表（文档第十三节第 10 条）。"""
+
+MATH_HINT_RE = re.compile(r"[0-9０-９]|数|算|平均|倍|除|乘|加|减|比|份|斤|两|里|步|秒|格")
+"""「介绍里必须含一个与数学有关的小细节」的最低可机器化标准。"""
 
 
 def numeric_consistency(report_output: str) -> List[str]:
@@ -305,6 +319,269 @@ def check_storylines() -> Tuple[List[str], int, int]:
 
 
 # ---------------------------------------------------------------------------
+# 断言四：角色数据与红线
+# ---------------------------------------------------------------------------
+
+
+def check_characters_data() -> Tuple[List[str], int, int, int]:
+    """校验 ``data/characters/*.json``：数量、结构、介绍字数与数学线索、红线词。
+
+    Returns:
+        ``(问题列表, 角色总数, 最短介绍字数, 最长介绍字数)``。
+    """
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import characters  # noqa: E402
+    import journey  # noqa: E402
+
+    problems: List[str] = []
+    total = 0
+    shortest, longest = 10 ** 6, 0
+    available = journey.storyline_order()
+    on_disk = characters.story_ids()
+    missing = [sid for sid in available if sid not in on_disk]
+    if missing:
+        problems.append(f"缺少角色库文件：{missing}")
+    extra = [sid for sid in on_disk if sid not in available]
+    if extra:
+        problems.append(f"角色库里有未上线的故事线：{extra}")
+
+    for sid in on_disk:
+        data = characters.load(sid)
+        items = characters.all_characters(sid)
+        total += len(items)
+        if len(items) != 14:
+            problems.append(f"{sid}：角色 {len(items)} 名，应为 14（9 闯关 + 5 守关）")
+        bosses = [item for item in items if item["kind"] == "boss"]
+        guards = [item for item in items if item["kind"] == "guard"]
+        if len(bosses) != 9:
+            problems.append(f"{sid}：闯关大将 {len(bosses)} 名，应为 9")
+        if len(guards) != 5:
+            problems.append(f"{sid}：守关大将 {len(guards)} 名，应为 5")
+        if len(characters.guard_pool_ids(sid)) != 5:
+            problems.append(f"{sid}：guard_pool 不是 5 名")
+        stage_bosses = data.get("stage_bosses") or {}
+        if sorted(int(key) for key in stage_bosses) != list(range(1, 10)):
+            problems.append(f"{sid}：stage_bosses 未覆盖 1~9 关")
+        union = set(str(v) for v in stage_bosses.values()) | set(characters.guard_pool_ids(sid))
+        if len(union) != 14:
+            problems.append(f"{sid}：闯关大将与守关池有重叠或缺员（并集 {len(union)}）")
+        if len(set(item["id"] for item in items)) != len(items):
+            problems.append(f"{sid}：角色 id 有重复")
+        for item in items:
+            char_id = str(item["id"])
+            if char_id != char_id.lower():
+                problems.append(f"{sid} {char_id}：角色 id 应全小写")
+            intro = str(item.get("intro") or "")
+            length = len(intro)
+            shortest, longest = min(shortest, length), max(longest, length)
+            if not (60 <= length <= 150):
+                problems.append(f"{sid} {char_id}：介绍 {length} 字，应为 60~150 字")
+            if not str(item.get("title") or "").strip():
+                problems.append(f"{sid} {char_id}：缺少 title")
+            if not str(item.get("intro_locked_hint") or "").strip():
+                problems.append(f"{sid} {char_id}：缺少 intro_locked_hint")
+            if not MATH_HINT_RE.search(intro):
+                problems.append(f"{sid} {char_id}：介绍里看不到与数学有关的小细节")
+            for field, text in (
+                ("intro", intro),
+                ("title", str(item.get("title") or "")),
+                ("intro_locked_hint", str(item.get("intro_locked_hint") or "")),
+            ):
+                hit = RED_LINE_RE.findall(text)
+                if hit:
+                    problems.append(f"{sid} {char_id} 的 {field} 命中红线词：{'、'.join(sorted(set(hit)))}")
+    return problems, total, (0 if shortest == 10 ** 6 else shortest), longest
+
+
+def check_scene_red_lines() -> Tuple[List[str], int]:
+    """校验 5 条线的场景修饰语：数量、结尾形式、红线词。
+
+    Returns:
+        ``(问题列表, 修饰语总数)``。
+    """
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import journey  # noqa: E402
+
+    problems: List[str] = []
+    total = 0
+    for sid in journey.storyline_order():
+        variants = journey.scene_variants(sid)
+        total += len(variants)
+        if len(variants) != 10:
+            problems.append(f"{sid}：场景修饰语 {len(variants)} 条，应为 10")
+        if len(set(variants)) != len(variants):
+            problems.append(f"{sid}：场景修饰语有重复")
+        for text in variants:
+            if not text.endswith(("的", "时", "日", "前", "后")):
+                problems.append(f"{sid}：修饰语「{text}」不以「的/时/日/前/后」结尾")
+            hit = RED_LINE_RE.findall(text)
+            if hit:
+                problems.append(f"{sid}：修饰语「{text}」命中红线词：{'、'.join(sorted(set(hit)))}")
+        for stage in range(1, 10):
+            for text in journey.stage_scenes(sid, stage):
+                if text.endswith("的"):
+                    problems.append(f"{sid} 第 {stage} 关：场景文本以「的」结尾（{text}）")
+                if len(set(journey.stage_scenes(sid, stage))) != 10:
+                    problems.append(f"{sid} 第 {stage} 关：10 条场景文本有重复")
+                    break
+    return problems, total
+
+
+# ---------------------------------------------------------------------------
+# 断言五：闯关规则（解锁 / 随机 / 品阶 / 收集）
+# ---------------------------------------------------------------------------
+
+
+def check_journey_rules() -> List[str]:
+    """按文档第十三节逐条断言闯关规则。
+
+    这些断言全部跑在**临时进度库**上，不碰用户自己的 ``runtime/progress.db``。
+    """
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import characters  # noqa: E402
+    import journey  # noqa: E402
+    import progress  # noqa: E402
+
+    problems: List[str] = []
+    tmpdir = Path(tempfile.mkdtemp(prefix="mmqj-journey-"))
+    db_path = tmpdir / "progress.db"
+    try:
+        # 13.1 关卡链
+        clears = progress.get_clear_map(db_path=db_path)
+        if not journey.is_stage_unlocked("xiyou", 1, clears):
+            problems.append("解锁链：第 1 关应默认解锁")
+        if journey.is_stage_unlocked("xiyou", 2, clears):
+            problems.append("解锁链：未通关第 1 关时第 2 关不应解锁")
+        progress.create_run(
+            run_id="run-only",
+            story="xiyou",
+            level_id=journey.stage_key("xiyou", 1),
+            seed="only-run",
+            boss_id="xiyou_tang",
+            guard_id="xiyou_honghaier",
+            scene_variant="清晨，五行山下的路口",
+            db_path=db_path,
+        )
+        clears = progress.get_clear_map(db_path=db_path)
+        if journey.is_stage_unlocked("xiyou", 2, clears):
+            problems.append("解锁链：只有 stage_runs 记录、未写 stage_clear 时不应解锁")
+        progress.clear_stage(
+            journey.stage_key("xiyou", 1), 1.0, story="xiyou", db_path=db_path, tier="gold"
+        )
+        clears = progress.get_clear_map(db_path=db_path)
+        if not journey.is_stage_unlocked("xiyou", 2, clears):
+            problems.append("解锁链：通关第 1 关后第 2 关应解锁")
+
+        # 13.2 故事线链
+        if journey.is_story_unlocked("sanguo", clears):
+            problems.append("故事线链：西游未全通时三国线不应解锁")
+        for stage in range(1, 10):
+            progress.clear_stage(
+                journey.stage_key("xiyou", stage), 1.0, story="xiyou", db_path=db_path, tier="gold"
+            )
+        clears = progress.get_clear_map(db_path=db_path)
+        if not journey.is_story_unlocked("sanguo", clears):
+            problems.append("故事线链：西游 9 关全通后三国线应解锁")
+        if journey.is_story_unlocked("silu", clears):
+            problems.append("故事线链：三国线未全通时丝路线不应解锁")
+
+        # 13.3 随机性：1000 个 seed
+        variants_seen: Dict[int, int] = {}
+        counts: Dict[int, int] = {}
+        guards_seen: Dict[str, int] = {}
+        dup_or_unsorted = 0
+        for index in range(1000):
+            plan = journey.draw_run("xiyou", 3, f"selfcheck-{index}")
+            variants_seen[plan.scene_index] = variants_seen.get(plan.scene_index, 0) + 1
+            counts[plan.question_count] = counts.get(plan.question_count, 0) + 1
+            guards_seen[plan.guard_id] = guards_seen.get(plan.guard_id, 0) + 1
+            if len(set(plan.difficulties)) != plan.question_count:
+                dup_or_unsorted += 1
+            if list(plan.difficulties) != sorted(plan.difficulties):
+                dup_or_unsorted += 1
+        if len(variants_seen) != 10:
+            problems.append(f"随机性：1000 个 seed 只覆盖 {len(variants_seen)} 个场景变体，应为 10")
+        for key, want in ((1, 30.0), (2, 40.0), (3, 30.0)):
+            got = counts.get(key, 0) / 10.0
+            if abs(got - want) > 5.0:
+                problems.append(f"随机性：{key} 题占比 {got:.1f}%，应接近 {want:.0f}%±5%")
+        if len(guards_seen) != 5:
+            problems.append(f"随机性：1000 个 seed 只出现过 {len(guards_seen)} 名守关大将，应为 5")
+        if dup_or_unsorted:
+            problems.append(f"随机性：难度档出现重复或未升序（{dup_or_unsorted} 次）")
+
+        # 13.4 可复现
+        first = journey.draw_run("xiyou", 5, "replay-me")
+        second = journey.draw_run("xiyou", 5, "replay-me")
+        if first != second:
+            problems.append("可复现：同一 seed 两次 draw_run 结果不同")
+
+        # 13.5 品阶边界
+        cases = ((0.59, "gold"), (0.60, "gold"), (0.61, "silver"), (1.00, "silver"), (1.01, "bronze"))
+        for ratio, want in cases:
+            got = journey.grade_tier(int(ratio * 100000), 100000)
+            if got != want:
+                problems.append(f"品阶：ratio {ratio} 判成 {got}，应为 {want}")
+        if journey.grade_tier(30000, 100000, used_hint=True) != "silver":
+            problems.append("品阶：用过提示时上限应为白银")
+        if journey.grade_tier(10000, 100000, used_skip=True) is not None:
+            problems.append("品阶：跳过时应返回 None")
+        if journey.grade_tier(10000, 100000, retry_count=1) != "gold":
+            problems.append("品阶：答错 1 次不应降品阶")
+        if journey.grade_tier(10000, 100000, retry_count=3) != "silver":
+            problems.append("品阶：答错 3 次应降到白银")
+
+        # 13.6 收集 + 13.7 介绍解锁
+        plan = journey.draw_run("xiyou", 1, "collect-me")
+        chars = journey.run_characters(plan)
+        progress.clear_stage(
+            journey.stage_key("xiyou", 1), 1.0, story="xiyou", db_path=db_path, tier="gold"
+        )
+        journey.collect("xiyou", chars, "gold", True, db_path=db_path)
+        table = progress.get_collection("xiyou", db_path=db_path)
+        for char_id in chars:
+            if char_id not in table:
+                problems.append(f"收集：{char_id} 通关后没有进角色库")
+            elif not table[char_id]["intro_unlocked"]:
+                problems.append(f"收集：{char_id} 干净通关后介绍应解锁")
+        journey.collect("xiyou", chars, "bronze", False, db_path=db_path)
+        table = progress.get_collection("xiyou", db_path=db_path)
+        for char_id in chars:
+            if table[char_id]["best_tier"] != "gold":
+                problems.append(f"收集：{char_id} 重玩拿到更低品阶后 best_tier 被下调了")
+            if not table[char_id]["intro_unlocked"]:
+                problems.append(f"收集：{char_id} 介绍被回锁了")
+
+        other = journey.draw_run("xiyou", 2, "collect-me-2")
+        dirty_chars = journey.run_characters(other)
+        journey.collect("xiyou", dirty_chars, "silver", False, db_path=db_path)
+        table = progress.get_collection("xiyou", db_path=db_path)
+        for char_id in dirty_chars:
+            if char_id in chars:
+                continue
+            if char_id not in table:
+                problems.append(f"收集：{char_id} 通关后没有进角色库")
+            elif table[char_id]["intro_unlocked"]:
+                problems.append(f"收集：{char_id} 未干净通关，介绍不应解锁")
+        if journey.collect("xiyou", dirty_chars, None, True, db_path=db_path):
+            problems.append("收集：跳过（无品阶）时不应收集角色")
+
+        # 角色图鉴三状态
+        view = {item["id"]: item for item in characters.collection_view("xiyou", table)}
+        unseen = [item for item in view.values() if item["state"] == characters.STATE_UNSEEN]
+        unlocked = [item for item in view.values() if item["state"] == characters.STATE_UNLOCKED]
+        locked = [item for item in view.values() if item["state"] == characters.STATE_COLLECTED]
+        if not unseen or not unlocked or not locked:
+            problems.append("图鉴：三种状态没有同时出现（未遇见 / 待解锁 / 已解锁）")
+        for item in view.values():
+            if item["state"] != characters.STATE_UNLOCKED and item["intro"]:
+                problems.append(f"图鉴：{item['id']} 未解锁却泄露了介绍原文")
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+    return problems
+
+
+# ---------------------------------------------------------------------------
 # 断言三：演示页内联题库与 demo/bank.json 一致
 # ---------------------------------------------------------------------------
 
@@ -352,7 +629,7 @@ def reexport_bank() -> Any:
 
 
 def check_demo_bank() -> Tuple[List[str], int]:
-    """校验演示页题库：内联 == bank.json == 重新导出的真值，且题目结构合法。
+    """校验演示页题库：内联 == bank.json == 重新导出的真值，且题目/角色/规则结构合法。
 
     Returns:
         ``(问题列表, 题目总数)``。
@@ -379,6 +656,8 @@ def check_demo_bank() -> Tuple[List[str], int]:
         )
 
     sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import characters  # noqa: E402
+    import journey  # noqa: E402
     import problem_gen  # noqa: E402
 
     available = problem_gen.story_ids(only_available=True)
@@ -386,20 +665,28 @@ def check_demo_bank() -> Tuple[List[str], int]:
     if sorted(bank.keys()) != sorted(available):
         problems.append(f"题库覆盖的故事线 {sorted(bank.keys())} 与可用线 {sorted(available)} 不一致")
 
+    # 规则参数必须与 data/run_rules.json 同源：演示页的品阶判定完全靠它。
+    if on_disk.get("rules") != journey.load_rules():
+        problems.append("demo 题库里的 rules 与 data/run_rules.json 不一致（两端会判出不同品阶）")
+
     total = 0
     for sid in available:
         items = bank.get(sid) or []
-        if len(items) != 9:
-            problems.append(f"{sid}：演示题库 {len(items)} 题，应为 9")
-        stages_seen = set()
+        if len(items) != 81:
+            problems.append(f"{sid}：演示题库 {len(items)} 题，应为 81（9 关 × 9 难）")
+        seen: set = set()
         for problem in items:
             total += 1
             level_id = str(problem.get("level_id"))
-            if not level_id.startswith(f"{sid}-") and sid != problem_gen.default_story():
-                problems.append(f"{sid} {level_id}：level_id 前缀与故事线不符")
-            if int(problem.get("stage") or 0) in stages_seen:
-                problems.append(f"{sid} {level_id}：同一关重复出现")
-            stages_seen.add(int(problem.get("stage") or 0))
+            stage = int(problem.get("stage") or 0)
+            difficulty = int(problem.get("difficulty") or 0)
+            if not (1 <= stage <= 9 and 1 <= difficulty <= 9):
+                problems.append(f"{sid} {level_id}：stage/difficulty 越界（{stage}/{difficulty}）")
+            if (stage, difficulty) in seen:
+                problems.append(f"{sid} {level_id}：同一关同一难度重复出现")
+            seen.add((stage, difficulty))
+            if level_id != problem_gen.level_id_for(sid, stage, difficulty):
+                problems.append(f"{sid} {level_id}：level_id 与 stage/difficulty 不符")
             answer = problem.get("answer")
             if not isinstance(answer, (int, float)) or isinstance(answer, bool):
                 problems.append(f"{sid} {level_id}：answer 不是数值（{answer!r}）")
@@ -412,6 +699,56 @@ def check_demo_bank() -> Tuple[List[str], int]:
                 problems.append(f"{sid} {level_id}：数据表为空")
             if not str(problem.get("question") or "").strip():
                 problems.append(f"{sid} {level_id}：题干为空")
+
+        # 角色库与关卡表
+        char_payload = (on_disk.get("characters") or {}).get(sid) or {}
+        if len(char_payload) != 14:
+            problems.append(f"{sid}：演示页角色 {len(char_payload)} 名，应为 14")
+        stages_payload = (on_disk.get("stages") or {}).get(sid) or []
+        if len(stages_payload) != 9:
+            problems.append(f"{sid}：演示页关卡 {len(stages_payload)} 个，应为 9")
+        for entry in stages_payload:
+            scenes = entry.get("scenes") or []
+            if len(scenes) != 10:
+                problems.append(f"{sid} 第 {entry.get('stage')} 关：场景文本 {len(scenes)} 条，应为 10")
+            if len(set(scenes)) != len(scenes):
+                problems.append(f"{sid} 第 {entry.get('stage')} 关：场景文本有重复")
+            for text in scenes:
+                if str(text).endswith("的"):
+                    problems.append(f"{sid} 第 {entry.get('stage')} 关：场景文本以「的」结尾（{text}）")
+            if not entry.get("bossId"):
+                problems.append(f"{sid} 第 {entry.get('stage')} 关：缺少闯关大将")
+        if len((on_disk.get("guards") or {}).get(sid) or []) != 5:
+            problems.append(f"{sid}：守关池不是 5 名")
+
+    # 固定用例：两端一致性的唯一机器凭证
+    vectors = on_disk.get("vectors") or []
+    if not vectors:
+        problems.append("demo 题库缺少 vectors（两端一致性无法校验）")
+    for vec in vectors:
+        try:
+            plan = journey.draw_run(str(vec["story"]), int(vec["stage"]), str(vec["seed"]))
+        except Exception as exc:  # pragma: no cover - 数据坏了才会走到
+            problems.append(f"固定用例重算失败（{vec.get('story')}/{vec.get('seed')}）—— {exc}")
+            continue
+        expect = {
+            "sceneIndex": plan.scene_index,
+            "sceneText": plan.scene_text,
+            "guardId": plan.guard_id,
+            "questionCount": plan.question_count,
+            "difficulties": list(plan.difficulties),
+        }
+        actual = {
+            "sceneIndex": vec.get("sceneIndex"),
+            "sceneText": vec.get("sceneText"),
+            "guardId": vec.get("guardId"),
+            "questionCount": vec.get("questionCount"),
+            "difficulties": vec.get("difficulties"),
+        }
+        if expect != actual:
+            problems.append(
+                f"固定用例 {vec.get('story')}/{vec.get('stage')}/{vec.get('seed')} 与重算结果不一致"
+            )
     return problems, total
 
 
@@ -558,6 +895,24 @@ def main() -> int:
             {"line_no": 0, "expect": "brief 里的份数与题面一致", "actual": issue}
         )
 
+    char_issues, char_total, char_short, char_long = check_characters_data()
+    for issue in char_issues:
+        problems.append(
+            {"line_no": 0, "expect": "角色库完整（14 名/线、介绍 60~150 字、含数学细节、无红线词）", "actual": issue}
+        )
+
+    scene_issues, scene_total = check_scene_red_lines()
+    for issue in scene_issues:
+        problems.append(
+            {"line_no": 0, "expect": "场景修饰语合规（每线 10 条、语法自洽、无红线词）", "actual": issue}
+        )
+
+    rule_issues = check_journey_rules()
+    for issue in rule_issues:
+        problems.append(
+            {"line_no": 0, "expect": "闯关规则（解锁链 / 随机性 / 可复现 / 品阶 / 收集）", "actual": issue}
+        )
+
     if not problems:
         total_lines = sum(len(block.splitlines()) for block in blocks)
         print(
@@ -566,7 +921,9 @@ def main() -> int:
             f"{round(EXPECTED_CORRECT / EXPECTED_ATTEMPTS * 100, 1)}%）；"
             f"故事线 {story_count} 条 × {story_levels // max(story_count, 1)} 关校验通过；"
             f"demo 题库 {bank_total} 题与 bank.json / 重导出结果一致；"
-            f"README 规模数字一致（{story_levels} 个关卡位，{distinct} 条不同题面）"
+            f"README 规模数字一致（{story_levels} 个关卡位，{distinct} 条不同题面）；"
+            f"角色 {char_total} 名（介绍 {char_short}~{char_long} 字）/ 场景修饰语 {scene_total} 条；"
+            f"闯关规则断言全部通过"
         )
         return 0
 

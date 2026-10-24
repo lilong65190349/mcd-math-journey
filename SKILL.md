@@ -22,8 +22,28 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 | 分步讲解 | `verify.explain(problem)` | Markdown，结尾附「适量、均衡搭配，不浪费。」 |
 | 错题本 | `python scripts/cli.py wrongbook [--story ID]` | 本机 SQLite，按知识点聚合；不传 `--story` 则全量并标注来源线 |
 | 家长周报 | `python scripts/cli.py report --days 7 [--story ID]` | Markdown，含薄弱知识点 Top3 与下周建议 |
+| **闯关（v2.0）** | `play --level 3` 或 `play --story sanguo --stage 3` | 按关抽 1~3 题（场景 10 选 1、难度档不重复、守将 5 选 1）、计时、评品阶、揭守关大将、收角色卡 |
+| **角色图鉴（v2.0）** | `python scripts/cli.py characters [--story ID] [--unlocked-only]` | 每线 14 名：9 闯关大将 + 5 守关池；三种状态（未遇见 / 已收集待解锁 / 已解锁） |
+| **解锁进度（v2.0）** | `python scripts/cli.py stories` | 5 条线的 `已通关 N/9 关` 与锁状态（下一条线要先走完上一条线 9 关） |
 | 数据抓取与状态 | `python scripts/data_source.py --fetch` / `--status` | 三级降级：MCP → 缓存 → 示例 |
 | 环境自检 | `python scripts/cli.py doctor` | 令牌、连通性、缓存、示例数据、数据库、故事线注册数 |
+
+### 闯关规则（规则全文见 `docs/SYSTEM_RULES.md`）
+
+| 事项 | 规则 |
+| --- | --- |
+| 关卡解锁 | 第 1 关默认可玩；第 `k` 关要求第 `k-1` 关已通关（由 `stage_clear` 推导，不存状态位） |
+| 故事线解锁 | 第 `n` 条线要求第 `n-1` 条线 9 关全通；顺序取 `index.json` 的 `storylines` 数组顺序 |
+| 一次 run 抽什么 | 场景 10 选 1 / 题数 30-40-30 / 难度档 9 选 k 不重复且升序 / 守将 5 选 1，全部由 `seed` 派生四路独立子种子 |
+| 种子 | `story-stage-毫秒时间戳-随机后缀`，记进 `stage_runs.seed`；`--seed` 可指定以重放 |
+| 品阶 | `ratio ≤ 0.60` 黄金、`≤ 1.00` 白银、其余青铜；基准按知识点年级（3/4/5/6 年级 = 45/60/75/90 秒每题）；单题上限 600 秒 |
+| 修正（只降不升） | 用过提示 → 上限白银；答错 ≥3 次 → 上限白银；跳过 → 无品阶、不收卡（但照记通关） |
+| 角色收集 | 通关即收卡（闯关大将 + 本场守将各 1 张）；**干净通关**（不看提示、不答错、不跳过）才解锁介绍，解锁后不回锁 |
+| 重玩 | 允许无限重玩；`best_tier` 只升不降 |
+| 中断 | 中途退出 / 刷新视为作废（`stage_runs` 留 `finished_at` 为空），不计品阶、不收集 |
+
+规则参数外置在 `data/run_rules.json`：CLI 与演示页读同一份，演示页由 `export_demo_bank.py` 原样内联，
+所以两端品阶判定不会跑偏（自检里 135 条固定用例逐条比对两端抽样结果）。
 
 ### 不做什么（硬边界）
 
@@ -34,6 +54,10 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 - 不模仿、不使用任何现代影视改编作品的形象；演示页只有抽象几何装饰，无人物立绘。
 - **不新增近现代史题材**：故事线只从公有领域古典作品与公开历史事实（丝路商旅、郑和下西洋）取材，
   每条线的 JSON 必须写明 `era_note`；不含冲突、暴力、宗教与超自然表述。
+- **角色介绍只写性格与做事方式**：70 条介绍不许出现法术 / 神力 / 显灵 / 天意 / 神机妙算、
+  不许出现冲突与贬损、不做宗教宣传；每条必须含一个与数学有关的小细节（60~150 字）。
+  红线词表在 `scripts/selfcheck.py::RED_LINE_RE`，命中即自检 FAIL。
+- **演示页不出人物立绘**：角色用「印章 + 名字 + 几何剪影」表示，装饰只用自绘几何 SVG。
 
 ## 二、只读工具白名单
 
@@ -70,6 +94,11 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 9. 记错题          → SQLite attempts 表（带 story 列）；一关 9 难全对则 clear_stage 记星
 10. 生成周报       → 家长视角，按线过滤或全量汇总 + 薄弱知识点 Top3 + 下周建议
 ```
+
+**闯关玩法的工作流**（`play --level <关号>` / `--stage`）：解锁校验 → `journey.draw_run` 抽场景/题数/
+难度/守将 → 按抽取结果出题（`problem_gen.level_id_for`）→ 逐题计时（`time.monotonic`，单题上限 600 秒）→
+`journey.grade_tier` 评品阶 → `progress.finish_run` 落库 → `journey.collect` 收卡与解锁介绍 →
+打印「用时 / 基准 / ratio / 品阶 / 守将揭名 / 角色卡 +N / 介绍解锁 M 张」。未解锁关卡 `exit=2` 且无 traceback。
 
 ## 四、输出格式规范
 
