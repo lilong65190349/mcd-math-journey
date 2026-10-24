@@ -441,7 +441,7 @@
 
   .story-seal.locked small { letter-spacing: 0; }
 
-  svg.map .node.locked { cursor: not-allowed; pointer-events: none; }
+  svg.map .node.locked { cursor: not-allowed; }
   svg.map .node.open .ring { filter: drop-shadow(0 0 7px rgba(178, 58, 47, 0.28)); }
 
   .node-mark {
@@ -1416,7 +1416,7 @@
       node.setAttribute("class", "node" + (cleared ? " done" : (open ? " open" : " locked")));
       node.setAttribute("tabindex", open ? "0" : "-1");
       if (!open) {
-        /* 真禁用：不可聚焦、标记 aria-disabled，且不绑定任何点击/键盘事件 */
+        /* 不可聚焦、保留「不可用」语义；点击只用来解释原因，不改变任何状态 */
         node.setAttribute("aria-disabled", "true");
         node.setAttribute("focusable", "false");
       } else {
@@ -1481,6 +1481,22 @@
           if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
             event.preventDefault();
             enterStage(stage);
+          }
+        });
+      } else {
+        /* 锁定节点：只给一句解释，绝不进关、不碰任何进度状态。
+           aria-disabled 保持「不可用」语义，pointer-events 放开是为了能收到点击并解释原因。 */
+        var why = "第 " + stage + " 关还没解锁，先通关第 " + (stage - 1) + " 关";
+        node.setAttribute("aria-label", why);
+        node.setAttribute("title", why);
+        var explain = function () {
+          toast("第 " + stage + " 关还没解锁，先通关第 " + (stage - 1) + " 关再来");
+        };
+        node.addEventListener("click", explain);
+        node.addEventListener("keydown", function (event) {
+          if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+            event.preventDefault();
+            explain();
           }
         });
       }
