@@ -1,0 +1,29 @@
+# 凭证与本地运行产物，一律不入库
+.env
+.env.*
+*.token
+*.pem
+*.key
+
+# MCP 抓取缓存（运行时生成）
+data/cache/
+
+# 本地进度数据库
+runtime/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

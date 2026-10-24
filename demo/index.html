@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>麦麦取经录 · 题目里的数字都是真的</title>
+<style>
+  :root {
+    --paper: #f6efe0;
+    --ink: #2b2823;
+    --seal: #b23a2f;
+    --muted: #5c6b73;
+    --line: rgba(43, 40, 35, 0.16);
+    --card: #fbf6ea;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: var(--paper);
+    background-image:
+      repeating-linear-gradient(0deg, rgba(178, 58, 47, 0.035) 0 1px, transparent 1px 4px),
+      repeating-linear-gradient(90deg, rgba(92, 107, 115, 0.03) 0 1px, transparent 1px 6px),
+      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.55), rgba(246, 239, 224, 0) 60%);
+    color: var(--ink);
+    font-family: "Songti SC", "SimSun", "Noto Serif CJK SC", "Source Han Serif SC", Georgia, serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 28px 20px 56px;
+  }
+
+  /* ---------- 卷轴头部 ---------- */
+  .scroll-head {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(246, 239, 224, 0.2)),
+      repeating-linear-gradient(90deg, rgba(178, 58, 47, 0.05) 0 2px, transparent 2px 8px);
+    padding: 26px 24px 22px;
+    box-shadow: 0 2px 0 rgba(43, 40, 35, 0.04), 0 12px 28px -22px rgba(43, 40, 35, 0.5);
+  }
+
+  .scroll-head::before,
+  .scroll-head::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, rgba(178, 58, 47, 0.18), rgba(92, 107, 115, 0.18));
+  }
+  .scroll-head::before { top: -3px; }
+  .scroll-head::after { bottom: -3px; }
+
+  h1 {
+    margin: 0;
+    font-size: 34px;
+    letter-spacing: 6px;
+    font-weight: 600;
+  }
+
+  h1 .sub {
+    display: block;
+    margin-top: 6px;
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .claim {
+    margin: 14px 0 0;
+    font-size: 17px;
+    color: var(--seal);
+    letter-spacing: 0.5px;
+  }
+
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border: 1.5px solid var(--muted);
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 1px;
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  .badge.seal {
+    border-color: var(--seal);
+    color: var(--seal);
+    transform: rotate(-1.6deg);
+    box-shadow: inset 0 0 0 1px rgba(178, 58, 47, 0.18);
+  }
+
+  .badge strong { font-weight: 600; }
+
+  /* ---------- 通用面板 ---------- */
+  .panel {
+    margin-top: 22px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--card);
+    padding: 20px 20px 22px;
+    box-shadow: 0 10px 26px -24px rgba(43, 40, 35, 0.7);
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    border-bottom: 1px dashed var(--line);
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+
+  .panel-head h2 {
+    margin: 0;
+    font-size: 18px;
+    letter-spacing: 3px;
+    font-weight: 600;
+  }
+
+  .panel-head .tip {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+
+  /* ---------- 关卡地图 ---------- */
+  .map-legend {
+    display: flex;
+    gap: 18px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+
+  .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: -1px;
+  }
+  .dot.on { background: var(--seal); }
+  .dot.off { background: transparent; border: 1.5px dashed var(--muted); }
+
+  svg.map {
+    width: 100%;
+    height: auto;
+    display: block;
+    touch-action: manipulation;
+  }
+
+  svg.map .node { cursor: pointer; }
+  svg.map .node:focus { outline: none; }
+  svg.map .node:focus .ring { stroke: var(--seal); stroke-width: 3; }
+
+  .node-label {
+    font-size: 11px;
+    fill: var(--muted);
+    letter-spacing: 1px;
+    font-family: inherit;
+    pointer-events: none;
+  }
+
+  /* ---------- 题目卡 ---------- */
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .chip {
+    font-size: 12px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.5px;
+  }
+
+  .chip.kp {
+    border-color: rgba(178, 58, 47, 0.35);
+    color: var(--seal);
+  }
+
+  .story {
+    font-size: 15px;
+    color: #3a352c;
+    margin: 0 0 14px;
+    padding-left: 12px;
+    border-left: 3px solid rgba(178, 58, 47, 0.35);
+  }
+
+  table.data {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin-bottom: 16px;
+    background: rgba(255, 255, 255, 0.55);
+  }
+
+  table.data caption {
+    text-align: left;
+    font-size: 12px;
+    color: var(--muted);
+    padding-bottom: 6px;
+    letter-spacing: 1px;
+  }
+
+  table.data th,
+  table.data td {
+    border: 1px solid var(--line);
+    padding: 7px 10px;
+    text-align: left;
+  }
+
+  table.data th {
+    background: rgba(92, 107, 115, 0.08);
+    font-weight: 600;
+    color: #46403a;
+    font-size: 13px;
+  }
+
+  .question {
+    font-size: 17px;
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: rgba(178, 58, 47, 0.06);
+    border: 1px dashed rgba(178, 58, 47, 0.3);
+  }
+
+  .answer-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  input[type="text"] {
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: 10px 12px;
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--ink);
+    background: #fffdf7;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+  }
+
+  input[type="text"]:focus {
+    outline: none;
+    border-color: rgba(178, 58, 47, 0.6);
+    box-shadow: 0 0 0 3px rgba(178, 58, 47, 0.1);
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    letter-spacing: 1px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1.5px solid var(--seal);
+    background: var(--seal);
+    color: #fdf8ee;
+    cursor: pointer;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+
+  button:hover { transform: translateY(-1px); }
+  button:active { transform: translateY(0); }
+
+  button.ghost {
+    background: transparent;
+    color: var(--muted);
+    border-color: var(--line);
+  }
+
+  button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .hint-box {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: rgba(92, 107, 115, 0.07);
+    border-left: 3px solid var(--muted);
+    font-size: 14px;
+  }
+
+  .hint-box p { margin: 6px 0; }
+  .hint-box .level { color: var(--seal); font-size: 12px; letter-spacing: 1px; }
+
+  .feedback {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  .feedback.ok {
+    background: rgba(70, 120, 90, 0.1);
+    border: 1px solid rgba(70, 120, 90, 0.35);
+  }
+
+  .feedback.no {
+    background: rgba(178, 58, 47, 0.08);
+    border: 1px solid rgba(178, 58, 47, 0.3);
+  }
+
+  .feedback h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    letter-spacing: 2px;
+  }
+
+  .steps {
+    margin: 10px 0 0;
+    padding-left: 20px;
+  }
+
+  .steps li { margin-bottom: 6px; }
+
+  .care {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--seal);
+    letter-spacing: 1px;
+  }
+
+  .src-line {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ---------- 通关印章动画 ---------- */
+  .seal-mark {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 168px;
+    height: 168px;
+    margin: -84px 0 0 -84px;
+    border: 5px solid var(--seal);
+    border-radius: 50%;
+    color: var(--seal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    font-size: 30px;
+    letter-spacing: 8px;
+    background: rgba(246, 239, 224, 0.92);
+    box-shadow: 0 0 0 4px rgba(178, 58, 47, 0.18) inset;
+    pointer-events: none;
+    z-index: 40;
+    animation: stamp 1.5s ease forwards;
+  }
+
+  .seal-mark small {
+    font-size: 12px;
+    letter-spacing: 3px;
+    margin-top: 4px;
+  }
+
+  @keyframes stamp {
+    0% { opacity: 0; transform: scale(2.2) rotate(-14deg); }
+    35% { opacity: 1; transform: scale(1) rotate(-8deg); }
+    70% { opacity: 1; transform: scale(1) rotate(-8deg); }
+    100% { opacity: 0; transform: scale(1) rotate(-8deg) translateY(-8px); }
+  }
+
+  /* ---------- 页脚 ---------- */
+  footer {
+    margin-top: 30px;
+    border-top: 1px dashed var(--line);
+    padding-top: 16px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.9;
+  }
+
+  footer p { margin: 4px 0; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 26px; letter-spacing: 4px; }
+    .claim { font-size: 15px; }
+    .wrap { padding: 18px 14px 40px; }
+    .panel { padding: 16px 14px 18px; }
+    table.data th, table.data td { padding: 6px 7px; font-size: 13px; }
+    .question { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="scroll-head">
+    <h1>麦麦取经录<span class="sub">MCD MATH JOURNEY · 九关八十一难</span></h1>
+    <p class="claim">题目里的数字都是真的，答案由麦当劳 MCP 真实计算校验。</p>
+    <div class="badges">
+      <span class="badge seal" id="dataBadge">数据来源：<strong>示例数据</strong></span>
+      <span class="badge">只读 MCP · 不下单</span>
+      <span class="badge">3-6 年级 · 25 个知识点</span>
+      <span class="badge">纯前端单文件 · 离线可开</span>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>取经路线图</h2>
+      <span class="tip">点击山径上的任意一关开始 · 进度保存在本机浏览器</span>
+    </div>
+    <div class="map-legend">
+      <span><span class="dot on"></span>已通关</span>
+      <span><span class="dot off"></span>未通关</span>
+    </div>
+    <svg class="map" viewBox="0 0 900 320" role="img" aria-label="九关取经路线图">
+      <defs>
+        <linearGradient id="inkFade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#5c6b73" stop-opacity="0.25" />
+          <stop offset="100%" stop-color="#b23a2f" stop-opacity="0.45" />
+        </linearGradient>
+      </defs>
+
+      <!-- 抽象山峰轮廓（几何装饰，无人物形象） -->
+      <g stroke="#5c6b73" stroke-opacity="0.22" fill="none" stroke-width="1.2">
+        <path d="M20 300 L90 232 L150 288 L210 300" />
+        <path d="M120 300 L196 214 L262 300" />
+        <path d="M300 300 L372 226 L430 300" />
+        <path d="M470 300 L548 206 L612 300" />
+        <path d="M640 300 L716 228 L790 300" />
+        <path d="M760 300 L836 218 L896 300" />
+      </g>
+
+      <!-- 云纹（抽象） -->
+      <g stroke="#5c6b73" stroke-opacity="0.28" fill="none" stroke-width="1.4" stroke-linecap="round">
+        <path d="M86 96 q14 -14 28 0 q14 -14 28 0" />
+        <path d="M300 66 q14 -14 28 0 q14 -14 28 0" />
+        <path d="M620 92 q14 -14 28 0 q14 -14 28 0" />
+      </g>
+
+      <!-- 山径 -->
+      <path d="M60 255 C110 240 130 205 180 200 C230 195 250 245 280 240 C330 230 340 180 380 170
+               C430 158 450 215 480 210 C530 202 545 150 580 140 C630 128 650 190 680 180
+               C730 168 750 120 780 110 C815 100 835 80 860 60"
+            fill="none" stroke="url(#inkFade)" stroke-width="3" stroke-dasharray="7 7"
+            stroke-linecap="round" />
+
+      <!-- 节点由脚本渲染 -->
+      <g id="nodes"></g>
+    </svg>
+  </section>
+
+  <section class="panel hidden" id="problemPanel">
+    <div class="panel-head">
+      <h2 id="panelTitle">题目</h2>
+      <span class="tip" id="panelTip">数据来自示例快照</span>
+    </div>
+    <div id="problemBody"></div>
+  </section>
+
+  <footer>
+    <p>本页面为「麦当劳 1024 程序员创意开发大赛」参赛作品，<strong>非麦当劳官方产品</strong>；输出仅供参考，餐品信息与价格以麦当劳官方渠道实时结果为准。</p>
+    <p>故事仅作情境比喻，用于提升学习趣味性。页面装饰为自绘几何图形，不使用任何影视改编作品的美术形象。</p>
+    <p>数据说明：当前页面内嵌的是<strong>示例数据快照</strong>，仅用于离线演示；实际运行时会通过麦当劳 MCP 的只读工具获取实时数据，并只调用只读接口，不点餐、不下单、不采集儿童个人信息。</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------------
+   * 示例数据快照（与 demo/sample_data.json 对齐，内嵌以便单文件离线运行）
+   * ------------------------------------------------------------------ */
+  var SAMPLE = {
+    fetched_at: "2026-10-24T09:00:00+08:00",
+    nutrition: [
+      { food_name: "巨无霸", energy_kcal: 530, protein_g: 26.0, weight_g: 219 },
+      { food_name: "麦辣鸡腿堡", energy_kcal: 570, protein_g: 24.0, weight_g: 200 },
+      { food_name: "双层吉士汉堡", energy_kcal: 450, protein_g: 25.0, weight_g: 165 },
+      { food_name: "中薯条", energy_kcal: 340, protein_g: 4.0, weight_g: 114 },
+      { food_name: "麦乐鸡(5块)", energy_kcal: 230, protein_g: 12.0, weight_g: 90 },
+      { food_name: "可乐(中)", energy_kcal: 150, protein_g: 0.0, weight_g: 400 },
+      { food_name: "麦旋风(原味)", energy_kcal: 310, protein_g: 6.0, weight_g: 180 },
+      { food_name: "玉米杯", energy_kcal: 90, protein_g: 2.0, weight_g: 105 },
+      { food_name: "鲜蔬沙拉", energy_kcal: 70, protein_g: 3.0, weight_g: 150 },
+      { food_name: "香芋派", energy_kcal: 250, protein_g: 3.0, weight_g: 75 },
+      { food_name: "麦咖啡拿铁(中)", energy_kcal: 130, protein_g: 7.0, weight_g: 350 },
+      { food_name: "苹果片", energy_kcal: 35, protein_g: 0.3, weight_g: 65 }
+    ],
+    meals: [
+      { meal_name: "巨无霸", price: 25.5 },
+      { meal_name: "麦辣鸡腿堡", price: 24.0 },
+      { meal_name: "双层吉士汉堡", price: 21.0 },
+      { meal_name: "中薯条", price: 12.0 },
+      { meal_name: "麦乐鸡(5块)", price: 13.5 },
+      { meal_name: "可乐(中)", price: 9.0 },
+      { meal_name: "麦旋风(原味)", price: 11.0 },
+      { meal_name: "玉米杯", price: 8.0 },
+      { meal_name: "鲜蔬沙拉", price: 14.0 },
+      { meal_name: "香芋派", price: 7.5 },
+      { meal_name: "麦咖啡拿铁(中)", price: 16.0 },
+      { meal_name: "苹果片", price: 6.0 }
+    ],
+    coupons: [
+      { coupon_name: "满30元减5元", threshold: 30.0, discount: 5.0 },
+      { coupon_name: "满50元减10元", threshold: 50.0, discount: 10.0 },
+      { coupon_name: "满20元减3元", threshold: 20.0, discount: 3.0 }
+    ],
+    calendar: [
+      { campaign_name: "数字点餐周", start_time: "2026-11-03 00:00", end_time: "2026-11-30 00:00" }
+    ],
+    points_products: [
+      { product_name: "巨无霸兑换券", points: 1200 },
+      { product_name: "中薯条兑换券", points: 600 },
+      { product_name: "麦咖啡拿铁券", points: 800 }
+    ]
+  };
+
+  var CARE_NOTE = "适量、均衡搭配，不浪费。";
+  var TOL = 0.01;
+
+  /* ------------------------------------------------------------------
+   * 九道题（数值全部取自上面的示例数据，答案用 JS Number 计算）
+   * ------------------------------------------------------------------ */
+  var PROBLEMS = [
+    {
+      level_id: "1-1", stage: 1, stageName: "五行山下", grade: 3, kp: "万以内加减法",
+      role: "唐僧",
+      story: "唐僧在五行山下歇脚，把今天的餐品摆开：巨无霸、中薯条、可乐(中)。他想先弄清楚这一份加起来一共有多少能量。",
+      question: "这三样餐品一共多少千卡？",
+      table: {
+        title: "今日餐品营养（示例数据）",
+        columns: ["餐品", "能量（千卡）", "净含量（克）"],
+        rows: [["巨无霸", "530", "219"], ["中薯条", "340", "114"], ["可乐(中)", "150", "400"]]
+      },
+      answer: 530 + 340 + 150, unit: "千卡",
+      hints: [
+        "求「一共多少」，就是要把几个数合并起来，用加法。",
+        "把每个千卡数排成一列逐个相加：□ + □ + □ = □。",
+        "先算前两样：530 + 340 = 870 千卡。"
+      ],
+      steps: [
+        "把题目给出的每个数写下来：530 千卡、340 千卡、150 千卡。",
+        "求合计用加法：530 + 340 + 150 = 1020（千卡）。",
+        "所以这三样餐品一共 1020 千卡。"
+      ],
+      meta: { type: "add", terms: [530, 340, 150] }
+    },
+    {
+      level_id: "2-1", stage: 2, stageName: "三打白骨精", grade: 3, kp: "多步连减",
+      role: "孙悟空",
+      story: "行程按 1000 千卡来安排，路上挑了中薯条、麦乐鸡(5块)、可乐(中)。他想知道扣掉这些之后还剩多少额度。",
+      question: "预算 1000 千卡，减掉这三样餐品的热量后，还剩多少千卡？",
+      table: {
+        title: "本次餐品与预算（示例数据）",
+        columns: ["项目", "能量（千卡）"],
+        rows: [["中薯条", "340"], ["麦乐鸡(5块)", "230"], ["可乐(中)", "150"], ["本次预算", "1000"]]
+      },
+      answer: 1000 - (340 + 230 + 150), unit: "千卡",
+      hints: [
+        "先从预算里减还是先合并？两种顺序都可以，但要先弄清「减掉的总共是多少」。",
+        "两步走：第一步把三个千卡数相加得 □；第二步用 1000 减去这个和。",
+        "这三样餐品合起来是 720 千卡。"
+      ],
+      steps: [
+        "第一步：求出要减掉的总热量，340 + 230 + 150 = 720（千卡）。",
+        "第二步：用预算减去已用，1000 − 720 = 280（千卡）。",
+        "也可以一步步减：1000 − 340 − 230 − 150 = 280（千卡），结果一致。"
+      ],
+      meta: { type: "sub", base: 1000, terms: [340, 230, 150] }
+    },
+    {
+      level_id: "3-2", stage: 3, stageName: "八戒买饼", grade: 3, kp: "两位数乘一位数",
+      role: "猪八戒",
+      story: "八戒在点单台前看到巨无霸每份 25.50 元，今天的用餐计划需要 3 份，他先在心里把金额算了一遍。",
+      question: "每份巨无霸 25.50 元，3 份一共多少元？",
+      table: {
+        title: "今日菜单（示例数据）",
+        columns: ["餐品", "单价（元）", "份数"],
+        rows: [["巨无霸", "25.50", "3"]]
+      },
+      answer: 25.5 * 3, unit: "元",
+      hints: [
+        "求几个相同单价的合计，用乘法比连加快。",
+        "25.50 × 3 = □，注意结果要带两位小数。",
+        "拆开算：整数部分 25 × 3 = 75；小数部分 0.5 × 3 = 1.5。"
+      ],
+      steps: [
+        "一份 25.50 元，要 3 份，就是求 3 个 25.50 相加。",
+        "列式：25.50 × 3 = 76.50（元）。",
+        "所以一共 76.50 元。"
+      ],
+      meta: { type: "mul", a: 25.5, b: 3 }
+    },
+    {
+      level_id: "4-1", stage: 4, stageName: "流沙河", grade: 4, kp: "除法初步与余数",
+      role: "沙悟净",
+      story: "沙悟净在积分台前，手里有 1000 积分。他想换中薯条兑换券，每份需要 600 积分。",
+      question: "用 1000 积分兑换需要 600 积分的中薯条兑换券，最多能兑换几份？",
+      table: {
+        title: "积分商品（示例数据）",
+        columns: ["积分商品", "所需积分", "持有积分"],
+        rows: [["中薯条兑换券", "600", "1000"]]
+      },
+      answer: Math.floor(1000 / 600), unit: "份",
+      hints: [
+        "问「最多能换几份」，就是问总量里面包含几个单价，用除法。",
+        "1000 ÷ 600 = □（份）…… □（积分），商就是答案，余数是剩下的积分。",
+        "先试商：600 × 1 = 600，比 1000 小；再看 600 × 2 会不会超过 1000。"
+      ],
+      steps: [
+        "把 1000 积分按每份 600 积分去分，列式：1000 ÷ 600。",
+        "商是 1，余数是 400（600 × 1 = 600，1000 − 600 = 400）。",
+        "余数 400 比每份所需 600 积分小，说明不能再换一份，所以最多 1 份。"
+      ],
+      meta: { type: "div", dividend: 1000, divisor: 600, quotient: 1, remainder: 400 }
+    },
+    {
+      level_id: "5-1", stage: 5, stageName: "火焰山", grade: 4, kp: "质量与长度单位",
+      role: "唐僧",
+      story: "唐僧要把火焰山的物资称一称。麦乐鸡(5块)每份净含量 90 克，一共准备了 5 份，需要按千克登记。",
+      question: "每份麦乐鸡(5块)净含量 90 克，5 份一共多少千克？",
+      table: {
+        title: "净含量（示例数据）",
+        columns: ["餐品", "每份净含量（克）", "份数", "进率"],
+        rows: [["麦乐鸡(5块)", "90", "5", "1 千克 = 1000 克"]]
+      },
+      answer: (90 * 5) / 1000, unit: "千克",
+      hints: [
+        "先求总克数（乘法），再想克和千克之间的进率。",
+        "90 × 5 = □ 克；把克换成千克要除以 1000，即 □ ÷ 1000 = □ 千克。",
+        "先算第一步：90 × 5 = 450 克。"
+      ],
+      steps: [
+        "先求总克数：90 × 5 = 450（克）。",
+        "克换算成千克要除以进率 1000：450 ÷ 1000 = 0.45（千克）。",
+        "所以一共 0.45 千克。"
+      ],
+      meta: { type: "unit", grams: 450, kg: 0.45 }
+    },
+    {
+      level_id: "6-1", stage: 6, stageName: "通天河", grade: 4, kp: "年月日与时间",
+      role: "白龙马",
+      story: "去通天河对岸要走一段路。活动期「数字点餐周」从 2026-11-03 持续到 2026-11-30，两头都算。队伍计划每天走 8 千米。",
+      question: "活动期一共多少天？按每天走 8 千米计算，这些天一共走多少千米？",
+      table: {
+        title: "活动日历（示例数据）",
+        columns: ["活动名称", "开始日期", "结束日期", "每日路程（千米）"],
+        rows: [["数字点餐周", "2026-11-03", "2026-11-30", "8"]]
+      },
+      answer: ((30 - 3) + 1) * 8, unit: "千米",
+      hints: [
+        "这是两步题：先求天数，再用天数乘每天的路程。",
+        "天数 = 结束日期 − 开始日期 + 1（两头都算）；再算 天数 × 每天千米数 = □。",
+        "先算第一步：从 11 月 3 日到 11 月 30 日，两头都算，一共 28 天。"
+      ],
+      steps: [
+        "第一步求天数：30 − 3 = 27 天，两头都算再加 1，所以是 28 天。",
+        "第二步求路程：28 × 8 = 224（千米）。",
+        "所以这些天一共走 224 千米。"
+      ],
+      meta: { type: "mul", a: 28, b: 8 }
+    },
+    {
+      level_id: "7-1", stage: 7, stageName: "女儿国", grade: 5, kp: "百分数与折扣",
+      role: "唐僧",
+      story: "唐僧在看营养标签。巨无霸含蛋白质 26 克，整份能量 530 千卡。每克蛋白质大约提供 4 千卡能量。",
+      question: "巨无霸中，蛋白质提供的能量约占总能量的百分之几？（百分号前保留一位小数）",
+      table: {
+        title: "营养标签（示例数据）",
+        columns: ["餐品", "蛋白质（克）", "总能量（千卡）", "每克蛋白质供能"],
+        rows: [["巨无霸", "26", "530", "4 千卡"]]
+      },
+      answer: Math.round((26 * 4 / 530 * 100) * 10) / 10, unit: "%",
+      hints: [
+        "先求「部分」有多少千卡，再和「整体」比，最后写成百分数。",
+        "（26 × 4）÷ 530 × 100% = □%，保留一位小数。",
+        "先算第一步：蛋白质提供 104 千卡，整份总能量是 530 千卡。"
+      ],
+      steps: [
+        "第一步求部分能量：26 × 4 = 104（千卡）。",
+        "第二步求占比：104 ÷ 530 × 100% ≈ 19.6%。",
+        "所以蛋白质提供的能量约占总能量的 19.6%。"
+      ],
+      meta: { type: "percent", part: 104, whole: 530 }
+    },
+    {
+      level_id: "8-1", stage: 8, stageName: "真假美猴王", grade: 4, kp: "条形统计图与平均数",
+      role: "孙悟空",
+      story: "核对账目：巨无霸、麦辣鸡腿堡、双层吉士汉堡的价格各不相同，他想用一个数概括这几样的价格水平。",
+      question: "这三样餐品的平均价格是多少元？（保留两位小数）",
+      table: {
+        title: "今日菜单（示例数据）",
+        columns: ["餐品", "单价（元）"],
+        rows: [["巨无霸", "25.50"], ["麦辣鸡腿堡", "24.00"], ["双层吉士汉堡", "21.00"]]
+      },
+      answer: (25.5 + 24 + 21) / 3, unit: "元",
+      hints: [
+        "平均数的意思：把总量平均分成几份，求每份是多少。",
+        "两步走：先求 总价 = □ + □ + □；再算 总价 ÷ 份数（3）= □。",
+        "先算第一步：这三样餐品的总价是 70.50 元。"
+      ],
+      steps: [
+        "第一步求总价：25.50 + 24.00 + 21.00 = 70.50（元）。",
+        "第二步求平均数：70.50 ÷ 3 = 23.50（元）。",
+        "平均数 23.50 元落在最低价与最高价之间，说明结果合理。"
+      ],
+      meta: { type: "avg", total: 70.5, n: 3 }
+    },
+    {
+      level_id: "9-1", stage: 9, stageName: "灵山取经", grade: 6, kp: "百分数与折扣",
+      role: "唐僧",
+      story: "结算篮子里是巨无霸、麦辣鸡腿堡、中薯条，按需购买不多拿。手上有这些券：满30元减5元；满50元减10元；满20元减3元。",
+      question: "这几样餐品原价合计 61.50 元，用其中实付金额最少的一张券，需要付多少元？",
+      table: {
+        title: "菜单与优惠券（示例数据）",
+        columns: ["项目", "金额（元）"],
+        rows: [["巨无霸", "25.50"], ["麦辣鸡腿堡", "24.00"], ["中薯条", "12.00"], ["原价合计", "61.50"], ["适用券", "满50元减10元"]]
+      },
+      answer: (25.5 + 24 + 12) - 10, unit: "元",
+      hints: [
+        "先看每张券的门槛有没有达到，只有达到门槛的券才能用。",
+        "实付 = 原价合计 − 券的面额；把每张能用的券都试一遍，取实付金额最少的那一个。",
+        "原价合计 61.50 元，达到门槛且面额最大的是「满50元减10元」，可减 10 元。"
+      ],
+      steps: [
+        "第一步求原价合计：25.50 + 24.00 + 12.00 = 61.50（元）。",
+        "第二步判断门槛：满30元减5元已达到；满50元减10元已达到；满20元减3元已达到。",
+        "第三步求实付：61.50 − 10 = 51.50（元）。"
+      ],
+      meta: { type: "discount", total: 61.5, discount: 10 }
+    }
+  ];
+
+  /* 关卡节点坐标（与山径走向一致） */
+  var NODE_POS = [
+    [60, 255], [180, 200], [280, 240], [380, 170], [480, 210],
+    [580, 140], [680, 180], [780, 110], [860, 60]
+  ];
+
+  var STORE_KEY = "mmqj.progress.v1";
+
+  /* ------------------------------------------------------------------
+   * 进度存取
+   * ------------------------------------------------------------------ */
+  function loadProgress() {
+    try {
+      var raw = window.localStorage.getItem(STORE_KEY);
+      if (!raw) { return {}; }
+      var parsed = JSON.parse(raw);
+      return (parsed && typeof parsed === "object") ? parsed : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function saveProgress(data) {
+    try {
+      window.localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    } catch (err) {
+      /* 隐私模式下写入失败，不影响本局游玩 */
+    }
+  }
+
+  var progressData = loadProgress();
+
+  /* ------------------------------------------------------------------
+   * 工具函数
+   * ------------------------------------------------------------------ */
+  function fmt(value) {
+    var num = Number(value);
+    if (value !== 0 && !num) { return String(value); }
+    if (Math.abs(num - Math.round(num)) < 1e-9) { return String(Math.round(num)); }
+    return num.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  }
+
+  function parseUserAnswer(text) {
+    if (text === null || text === undefined) { return null; }
+    var raw = String(text).replace(/,/g, "").replace(/，/g, "").trim();
+    if (!raw) { return null; }
+    raw = raw.replace(/％/g, "%").replace(/百分之/g, "%");
+    var fraction = raw.match(/(\d+(?:\.\d+)?)\s*[/／]\s*(\d+(?:\.\d+)?)/);
+    if (fraction) {
+      var denom = parseFloat(fraction[2]);
+      if (!denom) { return null; }
+      return parseFloat(fraction[1]) / denom;
+    }
+    var match = raw.match(/-?\d+(?:\.\d+)?/);
+    if (!match) { return null; }
+    return parseFloat(match[0]);
+  }
+
+  function diagnose(problem, value) {
+    var expected = Number(problem.answer);
+    if (value === null || isNaN(value)) {
+      return "漏用条件：还没有输入有效的数字，请填一个数值再提交。";
+    }
+    var meta = problem.meta || {};
+    if (value === 0 && expected !== 0) {
+      return "数量关系错误：结果是 0，说明运算选错或条件用错了，先确认该用哪种运算、用了哪几个数。";
+    }
+    if (expected !== 0) {
+      if (Math.abs(value - expected * 1000) < TOL + 1e-9 || Math.abs(value - expected / 1000) < TOL + 1e-9) {
+        return "单位换算错误：克和千克的进率是 1000，换算时多乘或多除了一次。先把单位统一，再算数量。";
+      }
+      if (Math.abs(value - expected * 100) < TOL + 1e-9 || Math.abs(value - expected / 100) < TOL + 1e-9) {
+        return "单位换算错误：百分数与小数互换时多乘或多除了一次 100，注意百分号。";
+      }
+    }
+    if (meta.type === "mul" && Math.abs(value - (meta.a + meta.b)) < TOL + 1e-9) {
+      return "数量关系错误：这里求的是几个相同的数合起来，应该用乘法，而不是把两个数相加。想想「几个几」。";
+    }
+    if (meta.type === "mul" && Math.abs(value - meta.a * meta.b * 2) < TOL + 1e-9) {
+      return "数量关系错误：份数好像多算了一遍，先确认题目给的份数再乘。";
+    }
+    if (meta.type === "div" && Math.abs(value - meta.dividend) < TOL + 1e-9) {
+      return "漏用条件：这是总积分，题目问的是能换几份，还要除以每份所需的积分。";
+    }
+    if (meta.type === "sub" && Math.abs(value - meta.base) < TOL + 1e-9) {
+      return "漏用条件：只抄了预算，还没有把已经用掉的部分减掉。";
+    }
+    if (meta.type === "avg" && Math.abs(value - meta.total) < TOL + 1e-9) {
+      return "漏用条件：你算的是总价，平均数还要再除以份数。";
+    }
+    if (meta.type === "discount" && Math.abs(value - meta.total) < TOL + 1e-9) {
+      return "漏用条件：还没有把券的面额减掉，实付金额要减去优惠。";
+    }
+    if (meta.type === "unit" && Math.abs(value - meta.grams) < TOL + 1e-9) {
+      return "单位换算错误：这是总克数，题目要求用千克表示，还要除以 1000。";
+    }
+    if (meta.type === "percent" && Math.abs(value - (meta.part / meta.whole)) < TOL + 1e-9) {
+      return "单位换算错误：算出了比值，但百分数还要再乘 100，并带上百分号。";
+    }
+    if (meta.type === "add" && meta.terms && meta.terms.length) {
+      var maxTerm = Math.max.apply(null, meta.terms);
+      if (Math.abs(value - maxTerm) < TOL + 1e-9) {
+        return "漏用条件：只算了其中一样，题目要求把几样合并起来，别漏掉其他几项。";
+      }
+    }
+    if (Math.abs(value - expected) <= Math.abs(expected) * 0.2) {
+      return "运算错误：思路是对的，计算时某一步出了偏差，建议把每一步单独写出来再核对。";
+    }
+    if (Math.abs(value - expected) > Math.abs(expected)) {
+      return "数量关系错误：结果和参考值相差比较大，先确认用哪种运算、用了哪几个条件。";
+    }
+    return "漏用条件：请再读一遍题干，看看有没有条件还没用上。";
+  }
+
+  function stampSeal() {
+    var mark = document.createElement("div");
+    mark.className = "seal-mark";
+    mark.innerHTML = "通关<small>取经一难</small>";
+    document.body.appendChild(mark);
+    window.setTimeout(function () {
+      if (mark.parentNode) { mark.parentNode.removeChild(mark); }
+    }, 1600);
+  }
+
+  function scrollToPanel() {
+    var panel = document.getElementById("problemPanel");
+    if (panel && typeof panel.scrollIntoView === "function") {
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  /* ------------------------------------------------------------------
+   * 地图渲染
+   * ------------------------------------------------------------------ */
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  function isCleared(stage) {
+    for (var i = 0; i < PROBLEMS.length; i += 1) {
+      if (PROBLEMS[i].stage === stage) {
+        return Boolean(progressData[PROBLEMS[i].level_id]);
+      }
+    }
+    return false;
+  }
+
+  function renderMap() {
+    var group = document.getElementById("nodes");
+    while (group.firstChild) { group.removeChild(group.firstChild); }
+
+    PROBLEMS.forEach(function (problem, index) {
+      var pos = NODE_POS[index] || [60 + index * 90, 200];
+      var cleared = isCleared(problem.stage);
+
+      var node = document.createElementNS(SVG_NS, "g");
+      node.setAttribute("class", "node");
+      node.setAttribute("tabindex", "0");
+      node.setAttribute("role", "button");
+      node.setAttribute("aria-label", "第 " + problem.stage + " 关 " + problem.stageName);
+
+      var ring = document.createElementNS(SVG_NS, "circle");
+      ring.setAttribute("class", "ring");
+      ring.setAttribute("cx", pos[0]);
+      ring.setAttribute("cy", pos[1]);
+      ring.setAttribute("r", 24);
+      ring.setAttribute("fill", cleared ? "#b23a2f" : "#fbf6ea");
+      ring.setAttribute("stroke", cleared ? "#8f2b22" : "#5c6b73");
+      ring.setAttribute("stroke-width", "2");
+      if (!cleared) { ring.setAttribute("stroke-dasharray", "5 4"); }
+
+      var label = document.createElementNS(SVG_NS, "text");
+      label.setAttribute("x", pos[0]);
+      label.setAttribute("y", pos[1] + 7);
+      label.setAttribute("text-anchor", "middle");
+      label.setAttribute("font-size", "17");
+      label.setAttribute("font-family", "inherit");
+      label.setAttribute("fill", cleared ? "#f6efe0" : "#2b2823");
+      label.textContent = String(problem.stage);
+
+      var name = document.createElementNS(SVG_NS, "text");
+      name.setAttribute("class", "node-label");
+      name.setAttribute("x", pos[0]);
+      name.setAttribute("y", pos[1] + 44);
+      name.setAttribute("text-anchor", "middle");
+      name.textContent = problem.stageName;
+
+      node.appendChild(ring);
+      node.appendChild(label);
+      node.appendChild(name);
+
+      node.addEventListener("click", function () { openProblem(problem.level_id); });
+      node.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+          event.preventDefault();
+          openProblem(problem.level_id);
+        }
+      });
+
+      group.appendChild(node);
+    });
+  }
+
+  /* ------------------------------------------------------------------
+   * 题目卡渲染与交互
+   * ------------------------------------------------------------------ */
+  var activeProblem = null;
+
+  function findProblem(levelId) {
+    for (var i = 0; i < PROBLEMS.length; i += 1) {
+      if (PROBLEMS[i].level_id === levelId) { return PROBLEMS[i]; }
+    }
+    return null;
+  }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) { node.className = className; }
+    if (text !== undefined && text !== null) { node.textContent = String(text); }
+    return node;
+  }
+
+  function openProblem(levelId) {
+    var problem = findProblem(levelId);
+    if (!problem) { return; }
+    activeProblem = problem;
+
+    var panel = document.getElementById("problemPanel");
+    panel.classList.remove("hidden");
+    document.getElementById("panelTitle").textContent =
+      "第 " + problem.stage + " 关 · " + problem.stageName + "　（第 " + problem.level_id.split("-")[1] + " 难）";
+    document.getElementById("panelTip").textContent = "数据来自示例快照 · 实际运行会替换为实时数据";
+
+    var body = document.getElementById("problemBody");
+    while (body.firstChild) { body.removeChild(body.firstChild); }
+
+    var metaRow = el("div", "meta-row");
+    metaRow.appendChild(el("span", "chip", problem.grade + " 年级"));
+    metaRow.appendChild(el("span", "chip kp", problem.kp));
+    metaRow.appendChild(el("span", "chip", "情境角色：" + problem.role));
+    metaRow.appendChild(el("span", "chip", "只读数据 · 不下单"));
+    body.appendChild(metaRow);
+
+    body.appendChild(el("p", "story", problem.story));
+
+    var table = document.createElement("table");
+    table.className = "data";
+    var caption = document.createElement("caption");
+    caption.textContent = problem.table.title;
+    table.appendChild(caption);
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    problem.table.columns.forEach(function (column) {
+      headRow.appendChild(el("th", null, column));
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    var tbody = document.createElement("tbody");
+    problem.table.rows.forEach(function (row) {
+      var tr = document.createElement("tr");
+      row.forEach(function (cell) { tr.appendChild(el("td", null, cell)); });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    body.appendChild(table);
+
+    body.appendChild(el("p", "question", problem.question));
+
+    var answerRow = el("div", "answer-row");
+    var input = document.createElement("input");
+    input.type = "text";
+    input.id = "answerInput";
+    input.setAttribute("inputmode", "decimal");
+    input.setAttribute("autocomplete", "off");
+    input.setAttribute("placeholder", "在这里填写答案，单位：" + problem.unit);
+    answerRow.appendChild(input);
+
+    var submit = el("button", null, "提交答案");
+    answerRow.appendChild(submit);
+
+    var hintBtn = el("button", "ghost", "求提示（0/3）");
+    answerRow.appendChild(hintBtn);
+
+    var resetBtn = el("button", "ghost", "重做本题");
+    answerRow.appendChild(resetBtn);
+    body.appendChild(answerRow);
+
+    var hintBox = el("div", "hint-box hidden");
+    body.appendChild(hintBox);
+
+    var feedback = el("div", "feedback hidden");
+    body.appendChild(feedback);
+
+    var hintIndex = 0;
+    var tries = 0;
+
+    hintBtn.addEventListener("click", function () {
+      if (hintIndex >= problem.hints.length) { return; }
+      var level = hintIndex + 1;
+      var line = el("p");
+      line.appendChild(el("span", "level", "提示 " + level + " / 3　"));
+      line.appendChild(document.createTextNode(problem.hints[hintIndex]));
+      hintBox.appendChild(line);
+      hintBox.classList.remove("hidden");
+      hintIndex += 1;
+      hintBtn.textContent = "求提示（" + hintIndex + "/3）";
+      if (hintIndex >= problem.hints.length) {
+        hintBtn.disabled = true;
+        hintBtn.textContent = "提示已用完";
+      }
+    });
+
+    function showExplanation(correct) {
+      while (feedback.firstChild) { feedback.removeChild(feedback.firstChild); }
+      feedback.classList.remove("hidden", "ok", "no");
+      feedback.classList.add(correct ? "ok" : "no");
+
+      var title = el("h3", null, correct ? "答对了 · 这一难通过" : "还不对 · 看看卡在哪一步");
+      feedback.appendChild(title);
+
+      if (!correct) {
+        var value = parseUserAnswer(input.value);
+        feedback.appendChild(el("p", null, diagnose(problem, value)));
+        feedback.appendChild(el("p", null, "参考答案：" + fmt(problem.answer) + " " + problem.unit));
+      }
+
+      var list = el("ol", "steps");
+      problem.steps.forEach(function (step) { list.appendChild(el("li", null, step)); });
+      feedback.appendChild(list);
+      feedback.appendChild(el("p", "care", ">" + " " + CARE_NOTE));
+      feedback.appendChild(el("p", "src-line",
+        "校验方式：出题时用精确算式得出答案；接入麦当劳 MCP 后，提交时会再调用 calculate-price 复核一次。"));
+    }
+
+    function submitAnswer() {
+      var value = parseUserAnswer(input.value);
+      if (value === null) {
+        while (feedback.firstChild) { feedback.removeChild(feedback.firstChild); }
+        feedback.classList.remove("hidden", "ok");
+        feedback.classList.add("no");
+        feedback.appendChild(el("h3", null, "还没有输入数字"));
+        feedback.appendChild(el("p", null, diagnose(problem, null)));
+        return;
+      }
+      tries += 1;
+      var correct = Math.abs(value - Number(problem.answer)) <= TOL + 1e-9;
+      if (correct) {
+        progressData[problem.level_id] = { cleared: true, at: new Date().toISOString(), tries: tries };
+        saveProgress(progressData);
+        renderMap();
+        stampSeal();
+      }
+      showExplanation(correct);
+    }
+
+    submit.addEventListener("click", submitAnswer);
+
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        submitAnswer();
+      }
+    });
+
+    resetBtn.addEventListener("click", function () {
+      input.value = "";
+      while (hintBox.firstChild) { hintBox.removeChild(hintBox.firstChild); }
+      hintBox.classList.add("hidden");
+      hintIndex = 0;
+      hintBtn.disabled = false;
+      hintBtn.textContent = "求提示（0/3）";
+      while (feedback.firstChild) { feedback.removeChild(feedback.firstChild); }
+      feedback.classList.add("hidden");
+      input.focus();
+    });
+
+    scrollToPanel();
+    window.setTimeout(function () { input.focus(); }, 260);
+  }
+
+  /* ------------------------------------------------------------------
+   * 启动
+   * ------------------------------------------------------------------ */
+  function init() {
+    var badge = document.getElementById("dataBadge");
+    if (badge) {
+      badge.innerHTML = "数据来源：<strong>示例数据</strong>";
+      badge.setAttribute("title", "离线演示使用示例快照；实际运行会通过麦当劳 MCP 获取实时数据");
+    }
+    renderMap();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+{
+  "note": "示例数据，仅用于离线演示，实际运行会通过麦当劳 MCP 获取实时数据。",
+  "source": "sample",
+  "fetched_at": "2026-10-24T09:00:00+08:00",
+  "nutrition": [
+    {"food_name": "巨无霸", "energy_kcal": 530, "protein_g": 26.0, "fat_g": 28.0, "carb_g": 44.0, "sodium_mg": 960, "weight_g": 219},
+    {"food_name": "麦辣鸡腿堡", "energy_kcal": 570, "protein_g": 24.0, "fat_g": 30.0, "carb_g": 47.0, "sodium_mg": 1080, "weight_g": 200},
+    {"food_name": "双层吉士汉堡", "energy_kcal": 450, "protein_g": 25.0, "fat_g": 23.0, "carb_g": 34.0, "sodium_mg": 1120, "weight_g": 165},
+    {"food_name": "中薯条", "energy_kcal": 340, "protein_g": 4.0, "fat_g": 16.0, "carb_g": 44.0, "sodium_mg": 250, "weight_g": 114},
+    {"food_name": "麦乐鸡(5块)", "energy_kcal": 230, "protein_g": 12.0, "fat_g": 13.0, "carb_g": 15.0, "sodium_mg": 470, "weight_g": 90},
+    {"food_name": "可乐(中)", "energy_kcal": 150, "protein_g": 0.0, "fat_g": 0.0, "carb_g": 38.0, "sodium_mg": 20, "weight_g": 400},
+    {"food_name": "麦旋风(原味)", "energy_kcal": 310, "protein_g": 6.0, "fat_g": 10.0, "carb_g": 48.0, "sodium_mg": 130, "weight_g": 180},
+    {"food_name": "玉米杯", "energy_kcal": 90, "protein_g": 2.0, "fat_g": 1.5, "carb_g": 19.0, "sodium_mg": 5, "weight_g": 105},
+    {"food_name": "鲜蔬沙拉", "energy_kcal": 70, "protein_g": 3.0, "fat_g": 2.0, "carb_g": 10.0, "sodium_mg": 160, "weight_g": 150},
+    {"food_name": "香芋派", "energy_kcal": 250, "protein_g": 3.0, "fat_g": 13.0, "carb_g": 31.0, "sodium_mg": 180, "weight_g": 75},
+    {"food_name": "麦咖啡拿铁(中)", "energy_kcal": 130, "protein_g": 7.0, "fat_g": 6.0, "carb_g": 11.0, "sodium_mg": 90, "weight_g": 350},
+    {"food_name": "苹果片", "energy_kcal": 35, "protein_g": 0.3, "fat_g": 0.2, "carb_g": 9.0, "sodium_mg": 0, "weight_g": 65}
+  ],
+  "meals": [
+    {"meal_name": "巨无霸", "price": 25.5, "category": "汉堡", "energy_kcal": 530},
+    {"meal_name": "麦辣鸡腿堡", "price": 24.0, "category": "汉堡", "energy_kcal": 570},
+    {"meal_name": "双层吉士汉堡", "price": 21.0, "category": "汉堡", "energy_kcal": 450},
+    {"meal_name": "中薯条", "price": 12.0, "category": "小食", "energy_kcal": 340},
+    {"meal_name": "麦乐鸡(5块)", "price": 13.5, "category": "小食", "energy_kcal": 230},
+    {"meal_name": "可乐(中)", "price": 9.0, "category": "饮料", "energy_kcal": 150},
+    {"meal_name": "麦旋风(原味)", "price": 11.0, "category": "甜品", "energy_kcal": 310},
+    {"meal_name": "玉米杯", "price": 8.0, "category": "小食", "energy_kcal": 90},
+    {"meal_name": "鲜蔬沙拉", "price": 14.0, "category": "小食", "energy_kcal": 70},
+    {"meal_name": "香芋派", "price": 7.5, "category": "甜品", "energy_kcal": 250},
+    {"meal_name": "麦咖啡拿铁(中)", "price": 16.0, "category": "饮料", "energy_kcal": 130},
+    {"meal_name": "苹果片", "price": 6.0, "category": "小食", "energy_kcal": 35}
+  ],
+  "coupons": [
+    {"coupon_name": "满30元减5元", "threshold": 30.0, "discount": 5.0, "valid_until": "2026-11-30"},
+    {"coupon_name": "满50元减10元", "threshold": 50.0, "discount": 10.0, "valid_until": "2026-11-30"},
+    {"coupon_name": "满20元减3元", "threshold": 20.0, "discount": 3.0, "valid_until": "2026-11-30"}
+  ],
+  "calendar": [
+    {"campaign_name": "早餐时段", "start_time": "2026-11-01 07:00", "end_time": "2026-11-30 10:30"},
+    {"campaign_name": "数字点餐周", "start_time": "2026-11-03 00:00", "end_time": "2026-11-30 00:00"},
+    {"campaign_name": "会员积分季", "start_time": "2026-11-01 00:00", "end_time": "2026-11-30 22:00"}
+  ],
+  "points_products": [
+    {"product_name": "巨无霸兑换券", "points": 1200, "stock": 100},
+    {"product_name": "中薯条兑换券", "points": 600, "stock": 200},
+    {"product_name": "麦咖啡拿铁券", "points": 800, "stock": 150},
+    {"product_name": "麦旋风兑换券", "points": 700, "stock": 120},
+    {"product_name": "玉米杯兑换券", "points": 450, "stock": 180}
+  ],
+  "now": {
+    "datetime": "2026-10-24 09:30:00",
+    "weekday": "星期六",
+    "timezone": "Asia/Shanghai"
+  }
+}
