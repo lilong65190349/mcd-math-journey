@@ -40,6 +40,44 @@ DATA_CLI: Path = PROJECT_ROOT / "scripts" / "data_source.py"
 DATETIME_RE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}:\d{2}(?:\+08:00)?)?")
 ECHO_RE = re.compile(r"^\s*你的答案 > \S{1,8}$")
 
+# 示例 2（1 错 + 1 对）+ 示例 3（5 对）= 7 次作答、6 次答对。
+# 这是「这两段示例本该产生多少次作答」的算术事实，用来交叉校验周报里的累计量。
+EXPECTED_ATTEMPTS: int = 7
+EXPECTED_CORRECT: int = 6
+REPORT_RE = re.compile(
+    r"共作答 \*\*(\d+)\*\* 题，答对 \*\*(\d+)\*\* 题，正确率 \*\*([\d.]+)%\*\*"
+)
+
+
+def numeric_consistency(report_output: str) -> List[str]:
+    """交叉校验周报里的累计量是否算术自洽。
+
+    只做「字面 diff」还不够：如果哪天模板变了导致作答次数变化，而文档也跟着被改成另一组数字，
+    字面 diff 会通过、但数字本身可能是错的。这里再独立验一遍算术关系：
+
+    * ``共作答 N 题`` 必须等于这两段示例本该产生的作答次数（2 + 5 = 7）；
+    * ``答对 M 题`` 必须等于 ``EXPECTED_CORRECT``；
+    * ``正确率 X%`` 必须等于 ``round(M / N * 100, 1)``。
+
+    Args:
+        report_output: ``cli.py report`` 的真实输出。
+
+    Returns:
+        问题描述列表；空列表表示自洽。
+    """
+    match = REPORT_RE.search(report_output)
+    if not match:
+        return ["未在 report 输出中找到「共作答 N 题 / 答对 M 题 / 正确率 X%」"]
+    total, correct, rate = int(match.group(1)), int(match.group(2)), float(match.group(3))
+    issues: List[str] = []
+    if total != EXPECTED_ATTEMPTS:
+        issues.append(f"共作答 {total} 题，按示例 2+3 应为 {EXPECTED_ATTEMPTS} 题")
+    if correct != EXPECTED_CORRECT:
+        issues.append(f"答对 {correct} 题，应为 {EXPECTED_CORRECT} 题")
+    if total and abs(rate - round(correct / total * 100, 1)) > 0.05:
+        issues.append(f"正确率 {rate}% 与 {correct}/{total} 不一致")
+    return issues
+
 
 def normalize(text: str) -> str:
     """把时间戳归一化，便于跨机器比较。"""
@@ -168,18 +206,33 @@ def main() -> int:
     # 在临时目录建一份全新的进度库复跑，绝不触碰用户自己的 runtime/progress.db。
     # 目录特意命名为 <tmp>/runtime/progress.db：这样示例 1 里 `...\runtime\progress.db`
     # 这类带省略号的路径行，在本机与临时库两种情况下都能按「分段包含」匹配上。
-    with tempfile.TemporaryDirectory(prefix="mmqj-selfcheck-") as tmpdir:
+    #
+    # 因为每次都是全新建库，断言就与调用者的历史进度完全无关 —— 首跑、二跑、跑一百次
+    # 结果都一样（这是「幂等」的根治法：不依赖历史状态，也不靠预热）。
+    tmpdir = tempfile.mkdtemp(prefix="mmqj-selfcheck-")
+    try:
         db_dir = Path(tmpdir) / "runtime"
         db_dir.mkdir(parents=True, exist_ok=True)
         outputs = collect_outputs(str(db_dir / "progress.db"))
+    finally:
+        # 清理失败（例如系统装了 safe-delete 拦截）不能影响校验结论，也不能留脏目录
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
     problems: List[Dict[str, Any]] = []
     for block, first_line, output in zip(blocks, starts, outputs):
         problems.extend(compare_block(block, output, first_line))
 
+    # 累计量再独立验一遍算术（字面 diff 之外的第二道网）
+    for issue in numeric_consistency(outputs[4]):
+        problems.append({"line_no": starts[4], "expect": "周报累计量自洽", "actual": issue})
+
     if not problems:
         total_lines = sum(len(block.splitlines()) for block in blocks)
-        print(f"DOC_SYNC: OK —— 5 段示例共 {total_lines} 行，全部与当前代码一致")
+        print(
+            f"DOC_SYNC: OK —— 5 段示例共 {total_lines} 行与当前代码一致；"
+            f"周报累计量自洽（{EXPECTED_ATTEMPTS} 题 / 答对 {EXPECTED_CORRECT} / "
+            f"{round(EXPECTED_CORRECT / EXPECTED_ATTEMPTS * 100, 1)}%）"
+        )
         return 0
 
     print(f"DOC_SYNC: FAIL —— 发现 {len(problems)} 处文档与代码不一致：")
