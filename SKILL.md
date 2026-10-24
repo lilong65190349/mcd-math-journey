@@ -87,6 +87,7 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
   "grade": 3,
   "stage_grade_hint": 3,
   "role": "猪八戒",
+  "brief": "三份同样的餐品，总价是多少元？",
   "story": "……",
   "question": "每份可乐(中) 9.00 元，3 份一共多少元？",
   "data_table": {"title": "今日菜单（示例数据）", "columns": ["餐品", "单价（元）", "份数"], "rows": [["可乐(中)", "9.00", "3"]]},
@@ -96,12 +97,16 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
   "hints": ["……", "……", "……"],
   "steps": ["……", "适量、均衡搭配，不浪费。"],
   "verify": {"formula": "9.00*3", "tool": "calculate-price"},
+  "diagnosis": {"type": "mul", "a": "9.00", "b": 3, "expected": "27.00"},
   "data_source": "sample"
 }
 ```
 
 > 注 1：`story` 这个键在本项目里一直是**情境叙述文本**（不是故事线 id），故事线标识放在
 > `story_id`（英文 id）与 `story_name`（中文名），这样旧调用方读 `problem["story"]` 不会突然拿到 `"sanguo"`。
+>
+> 注 2：`brief` 是关卡配置里那一句话的题面摘要（来自 `data/storylines/*.json`），用于列表与自检；
+> `diagnosis` 是错因诊断用的结构化元信息（`type` 决定走哪条诊断分支），两者都由 `generate()` 一并返回。
 >
 > 注 2：`data_table.title` 的后缀（`（示例数据）` / `（实时数据）` / `（缓存数据 YYYY-MM-DD）`）
 > 由 `data_source` 的实际级别决定，与题目字段严格同源——上例 `data_source` 为 `sample`，
@@ -134,6 +139,9 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 - **故事线可插拔**：新增一条线 = `data/storylines/index.json` 加一项 + 一份同构 JSON
   （`id / name / subtitle / era_note / roles / stages`），`level_id` 用 `<story>-<stage>-<difficulty>`；
   9 个数学模板只按「第几关」索引，**不需要改任何数学代码**。`available: false` 的线不注册、不列出。
+- **关名与场景分工**：每个 stage 有 `name`（事件名，如「南京启航」）与 `scene`（具体地点，如「刘家港码头」）。
+  叙述模板把 `scene` 当地点、把 `name` 当事件，绝不把关名当地点用（否则会拼出「在南京启航歇脚」这种病句）；
+  `scene` 缺失时模板退化为不指定地点的写法。selfcheck 会校验 `scene` 非空、线内不重复、且不等于关名。
 
 ## 五、合规约束
 

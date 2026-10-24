@@ -220,6 +220,7 @@ def check_storylines() -> Tuple[List[str], int, int]:
     * ``level_id`` 命名合规：默认线是 ``<stage>-<difficulty>``，其他线是 ``<story>-<stage>-<difficulty>``；
     * ``brief`` 非空、不超过 30 字、线内不重复；
     * ``kp_id`` 必须命中 ``data/curriculum.json``；
+    * ``scene`` 非空且线内不重复（叙述模板用它当地点，关名是事件名不能当地点用）；
     * 关名非空且线内不重复；``roles`` 四类角色齐全；``era_note`` 非空。
 
     Returns:
@@ -257,6 +258,7 @@ def check_storylines() -> Tuple[List[str], int, int]:
             problems.append(f"{sid}：关卡数 {len(stages)}，应为 9")
         seen_names: List[str] = []
         seen_briefs: List[str] = []
+        seen_scenes: List[str] = []
         for order, stage in enumerate(stages, start=1):
             name = str(stage.get("name") or "").strip()
             if not name:
@@ -264,6 +266,15 @@ def check_storylines() -> Tuple[List[str], int, int]:
             elif name in seen_names:
                 problems.append(f"{sid} 第 {order} 关：关名重复（{name}）")
             seen_names.append(name)
+
+            scene = str(stage.get("scene") or "").strip()
+            if not scene:
+                problems.append(f"{sid} 第 {order} 关：scene 为空（叙述模板需要具体地点）")
+            elif scene == name:
+                problems.append(f"{sid} 第 {order} 关：scene 不能等于关名（关名是事件名，不是地点）")
+            elif scene in seen_scenes:
+                problems.append(f"{sid} 第 {order} 关：scene 线内重复（{scene}）")
+            seen_scenes.append(scene)
 
             stage_no = int(stage.get("stage") or order)
             levels = stage.get("levels") or []
@@ -312,8 +323,36 @@ def embedded_bank() -> Any:
     return json.loads(text)
 
 
+def reexport_bank() -> Any:
+    """用当前代码 + 示例数据把演示题库重新导出一遍（不写文件）。
+
+    这是「内联 == bank.json」之外的第三只眼：如果两边被同步改错（比如把某个答案
+    一起改成错的），逐字节比对会通过，但重新计算出来的真值不会骗人。
+    为了保证可复现，这里强制走离线示例快照（临时缓存目录 + 清掉令牌），
+    与 ``export_demo_bank.py`` 的生成环境一致。
+    """
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import data_source  # noqa: E402
+    import export_demo_bank  # noqa: E402
+    import problem_gen  # noqa: E402
+    from mcp_client import TOKEN_ENV  # noqa: E402
+
+    os.environ.pop(TOKEN_ENV, None)
+    tmpdir = Path(tempfile.mkdtemp(prefix="mmqj-bank-"))
+    original_cache = data_source.CACHE_DIR
+    data_source.CACHE_DIR = tmpdir
+    data_source.reset_client()
+    problem_gen._STATE = None
+    try:
+        return export_demo_bank.build_bank()
+    finally:
+        data_source.CACHE_DIR = original_cache
+        problem_gen._STATE = None
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 def check_demo_bank() -> Tuple[List[str], int]:
-    """校验演示页题库：内联 == bank.json，且每条线的题目结构与答案合法。
+    """校验演示页题库：内联 == bank.json == 重新导出的真值，且题目结构合法。
 
     Returns:
         ``(问题列表, 题目总数)``。
@@ -328,6 +367,16 @@ def check_demo_bank() -> Tuple[List[str], int]:
     on_disk = json.loads(DEMO_BANK.read_text(encoding="utf-8"))
     if inline != on_disk:
         problems.append("demo/index.html 内联题库与 demo/bank.json 不一致（请重跑 export_demo_bank.py）")
+
+    try:
+        fresh = reexport_bank()
+    except Exception as exc:  # pragma: no cover - 导不出来就是硬故障
+        problems.append(f"重新导出演示题库失败 —— {exc}")
+        fresh = None
+    if fresh is not None and fresh != on_disk:
+        problems.append(
+            "demo/bank.json 与当前代码重新导出的结果不一致（可能被手工改过，或改了出题逻辑没重跑脚本）"
+        )
 
     sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
     import problem_gen  # noqa: E402
@@ -364,6 +413,92 @@ def check_demo_bank() -> Tuple[List[str], int]:
             if not str(problem.get("question") or "").strip():
                 problems.append(f"{sid} {level_id}：题干为空")
     return problems, total
+
+
+_CN_COUNT = {"两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_SAMPLE_COUNT_RE = re.compile(r"这 (\d+) 样")
+_SAMPLE_COUNT_2_RE = re.compile(r"(\d+) 份一共多少")
+_BRIEF_COUNT_RE = re.compile(r"(?<![前第])([两二三四五六七八九])([样份])")
+"""brief 里的总数表述；`前两样` / `第三样` 这类序数说法不算总数，排除掉。"""
+
+
+def check_brief_question() -> List[str]:
+    """校验「brief 里写的份数」与「题面里的份数」一致。
+
+    这是 QA 抓到的另一类隐患：brief 写「四样餐品」，题面却问「这 6 样」。
+    只对句式里明确带计数的两类题面做检查（第 1/8 关的「这 N 样」、第 3/5 关的「N 份」），
+    其余句式不做猜测，避免误报。
+    """
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import problem_gen  # noqa: E402
+
+    problems: List[str] = []
+    for sid in problem_gen.story_ids(only_available=True):
+        for stage in problem_gen.list_stages(sid):
+            for level in stage["levels"]:
+                brief = str(level["brief"])
+                match = _BRIEF_COUNT_RE.search(brief)
+                if not match:
+                    continue
+                brief_count = _CN_COUNT[match.group(1)]
+                question = problem_gen.generate(level_id=level["level_id"], salt="dedupe")["question"]
+                found = _SAMPLE_COUNT_RE.search(question) or _SAMPLE_COUNT_2_RE.search(question)
+                if not found:
+                    continue
+                question_count = int(found.group(1))
+                if question_count != brief_count:
+                    problems.append(
+                        f"{level['level_id']}：brief 写 {brief_count} {match.group(2)}，"
+                        f"题面是 {question_count} {match.group(2)}（{question}）"
+                    )
+    return problems
+
+
+def distinct_questions() -> Tuple[int, int]:
+    """统计默认线 81 关在固定种子下的不同题面数与关卡总数。
+
+    固定 ``salt`` 是为了让统计结果与机器、时刻无关（随机种子每次都不同的话，
+    这个数字没有意义）。返回 ``(不同题面数, 关卡总数)``。
+    """
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import problem_gen  # noqa: E402
+
+    default_id = problem_gen.default_story()
+    questions = set()
+    levels = 0
+    for stage in problem_gen.list_stages(default_id):
+        for level in stage["levels"]:
+            levels += 1
+            questions.add(problem_gen.generate(level_id=level["level_id"], salt="dedupe")["question"])
+    return len(questions), levels
+
+
+def check_readme_numbers(story_count: int, total_levels: int) -> Tuple[List[str], int]:
+    """README 里的规模数字必须与代码实际一致。
+
+    这是 QA 指出的盲区：自检原本只验「示例输出」，README 正文里的「405 关」「81 关」
+    写错了没人管。这里把三个数字都机器化：
+
+    * ``<total_levels> 个关卡位``（5 条线合计）
+    * ``<per_line> 关``（每条线的关卡数）
+    * ``<distinct> 条不同题面``（默认线固定种子口径）
+
+    Returns:
+        ``(问题列表, 不同题面数)``。
+    """
+    distinct, _ = distinct_questions()
+    text = README_PATH.read_text(encoding="utf-8")
+    per_line = total_levels // max(story_count, 1)
+    problems: List[str] = []
+    expected = {
+        f"{total_levels} 个关卡位": "可用故事线的关卡位总数",
+        f"{per_line} 关": "每条线的关卡数",
+        f"{distinct} 条不同题面": "默认线固定种子下的不同题面数",
+    }
+    for snippet, label in expected.items():
+        if snippet not in text:
+            problems.append(f"README 里没有出现「{snippet}」（{label}），或数字已过期")
+    return problems, distinct
 
 
 def main() -> int:
@@ -412,6 +547,17 @@ def main() -> int:
             {"line_no": 0, "expect": "demo 内联题库与 bank.json 一致", "actual": issue}
         )
 
+    readme_issues, distinct = check_readme_numbers(story_count, story_levels)
+    for issue in readme_issues:
+        problems.append(
+            {"line_no": 0, "expect": "README 里的规模数字与代码一致", "actual": issue}
+        )
+
+    for issue in check_brief_question():
+        problems.append(
+            {"line_no": 0, "expect": "brief 里的份数与题面一致", "actual": issue}
+        )
+
     if not problems:
         total_lines = sum(len(block.splitlines()) for block in blocks)
         print(
@@ -419,7 +565,8 @@ def main() -> int:
             f"周报累计量自洽（{EXPECTED_ATTEMPTS} 题 / 答对 {EXPECTED_CORRECT} / "
             f"{round(EXPECTED_CORRECT / EXPECTED_ATTEMPTS * 100, 1)}%）；"
             f"故事线 {story_count} 条 × {story_levels // max(story_count, 1)} 关校验通过；"
-            f"demo 题库 {bank_total} 题与 bank.json 一致"
+            f"demo 题库 {bank_total} 题与 bank.json / 重导出结果一致；"
+            f"README 规模数字一致（{story_levels} 个关卡位，{distinct} 条不同题面）"
         )
         return 0
 

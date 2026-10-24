@@ -17,6 +17,7 @@
       "stage": 1,
       "name": "南京启航",
       "theme": "先把补给合起来：加法就是把两堆并成一堆",
+      "scene": "刘家港码头",
       "role_focus": "正使",
       "grade_hint": 3,
       "op_family": "add",
@@ -49,31 +50,31 @@
         {
           "level_id": "zhenghe-1-5",
           "kp_id": "g3_add_sub",
-          "brief": "先加前两份，再加第三份，合计多少？",
+          "brief": "先加前两份，再把后面的加上，合计多少？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "zhenghe-1-6",
           "kp_id": "g3_add_sub",
-          "brief": "三份补给热量凑一起，共多少千卡？",
+          "brief": "几份补给的热量凑一起，共多少千卡？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "zhenghe-1-7",
           "kp_id": "g3_add_sub",
-          "brief": "四份补给热量相加，别重复计算。",
+          "brief": "各样补给的热量相加，别重复计算。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "zhenghe-1-8",
           "kp_id": "g3_add_sub",
-          "brief": "四份补给能量合计多少？先估再算。",
+          "brief": "全部补给的能量合计多少？先估再算。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "zhenghe-1-9",
           "kp_id": "g3_add_sub",
-          "brief": "四项数据连加，算完核对答案单位。",
+          "brief": "多项数据连加，算完核对答案单位。",
           "data_hint": "nutrition"
         }
       ]
@@ -82,6 +83,7 @@
       "stage": 2,
       "name": "减载",
       "theme": "航程分几段耗用，一段段减掉更清楚",
+      "scene": "补给舱口",
       "role_focus": "粮官",
       "grade_hint": 3,
       "op_family": "sub",
@@ -147,6 +149,7 @@
       "stage": 3,
       "name": "分船",
       "theme": "几个几相加，用乘法一步到位",
+      "scene": "船坞料场",
       "role_focus": "船主",
       "grade_hint": 3,
       "op_family": "mul",
@@ -212,6 +215,7 @@
       "stage": 4,
       "name": "分粮",
       "theme": "平均分与包含除：问问里面有几个几",
+      "scene": "粮舱门口",
       "role_focus": "粮官",
       "grade_hint": 4,
       "op_family": "div",
@@ -277,6 +281,7 @@
       "stage": 5,
       "name": "淡水换算",
       "theme": "克与千克之间，只差一个进率",
+      "scene": "淡水舱",
       "role_focus": "匠师",
       "grade_hint": 4,
       "op_family": "decimal",
@@ -342,6 +347,7 @@
       "stage": 6,
       "name": "横渡",
       "theme": "先算天数，再算航程：两步不能省",
+      "scene": "泉州外海",
       "role_focus": "正使",
       "grade_hint": 4,
       "op_family": "time",
@@ -407,6 +413,7 @@
       "stage": 7,
       "name": "船员比例",
       "theme": "部分与整体：百分之几说的就是这个比",
+      "scene": "舱面案前",
       "role_focus": "船主",
       "grade_hint": 5,
       "op_family": "percent",
@@ -472,6 +479,7 @@
       "stage": 8,
       "name": "七日风信",
       "theme": "平均数是最公平的那把尺子",
+      "scene": "风信台",
       "role_focus": "匠师",
       "grade_hint": 4,
       "op_family": "average",
@@ -510,19 +518,19 @@
         {
           "level_id": "zhenghe-8-6",
           "kp_id": "g4_bar_chart",
-          "brief": "四样货品的平均价格是多少元？",
+          "brief": "各样货品的平均价格是多少元？",
           "data_hint": "menu"
         },
         {
           "level_id": "zhenghe-8-7",
           "kp_id": "g4_bar_chart",
-          "brief": "五样货品求平均，先算总价。",
+          "brief": "求这组货品的平均价，先算总价。",
           "data_hint": "menu"
         },
         {
           "level_id": "zhenghe-8-8",
           "kp_id": "g5_line_chart",
-          "brief": "五样价格相差较大，平均数多少？",
+          "brief": "价格相差较大，平均数要算准。",
           "data_hint": "menu"
         },
         {
@@ -537,6 +545,7 @@
       "stage": 9,
       "name": "互市",
       "theme": "同一批货，换个方案结果不同",
+      "scene": "互市码头",
       "role_focus": "船主",
       "grade_hint": 6,
       "op_family": "discount",

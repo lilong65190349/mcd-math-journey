@@ -17,6 +17,7 @@
       "stage": 1,
       "name": "出长安",
       "theme": "先把货值合起来：加法就是把两堆并成一堆",
+      "scene": "长安西市",
       "role_focus": "领队",
       "grade_hint": 3,
       "op_family": "add",
@@ -49,31 +50,31 @@
         {
           "level_id": "silu-1-5",
           "kp_id": "g3_add_sub",
-          "brief": "先加前两批，再加第三批，合计多少？",
+          "brief": "先加前两批，再把后面的加上，合计多少？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "silu-1-6",
           "kp_id": "g3_add_sub",
-          "brief": "三份货物热量凑一起，共多少千卡？",
+          "brief": "几批货物的热量凑一起，共多少千卡？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "silu-1-7",
           "kp_id": "g3_add_sub",
-          "brief": "四批货物热量相加，别重复计算。",
+          "brief": "各批货物的热量相加，别重复计算。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "silu-1-8",
           "kp_id": "g3_add_sub",
-          "brief": "四批货物能量合计多少？先估再算。",
+          "brief": "全部货物的能量合计多少？先估再算。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "silu-1-9",
           "kp_id": "g3_add_sub",
-          "brief": "四项数据连加，算完核对答案单位。",
+          "brief": "多项数据连加，算完核对答案单位。",
           "data_hint": "nutrition"
         }
       ]
@@ -82,6 +83,7 @@
       "stage": 2,
       "name": "过关卡",
       "theme": "路费分几段扣，一段段减掉更清楚",
+      "scene": "玉门关税亭",
       "role_focus": "驼队管事",
       "grade_hint": 3,
       "op_family": "sub",
@@ -147,6 +149,7 @@
       "stage": 3,
       "name": "驼队编组",
       "theme": "几个几相加，用乘法一步到位",
+      "scene": "驼队营地",
       "role_focus": "老掌柜",
       "grade_hint": 3,
       "op_family": "mul",
@@ -212,6 +215,7 @@
       "stage": 4,
       "name": "均分货物",
       "theme": "平均分与包含除：问问里面有几个几",
+      "scene": "敦煌货栈",
       "role_focus": "领队",
       "grade_hint": 4,
       "op_family": "div",
@@ -277,6 +281,7 @@
       "stage": 5,
       "name": "换秤",
       "theme": "克与千克之间，只差一个进率",
+      "scene": "疏勒秤房",
       "role_focus": "账房先生",
       "grade_hint": 4,
       "op_family": "decimal",
@@ -342,6 +347,7 @@
       "stage": 6,
       "name": "走河西",
       "theme": "先算天数，再算路程：两步不能省",
+      "scene": "河西驿道口",
       "role_focus": "领队",
       "grade_hint": 4,
       "op_family": "time",
@@ -407,6 +413,7 @@
       "stage": 7,
       "name": "抽成",
       "theme": "部分与整体：百分之几说的就是这个比",
+      "scene": "货栈账房",
       "role_focus": "老掌柜",
       "grade_hint": 5,
       "op_family": "percent",
@@ -472,6 +479,7 @@
       "stage": 8,
       "name": "十日账",
       "theme": "平均数是最公平的那把尺子",
+      "scene": "客栈账桌",
       "role_focus": "账房先生",
       "grade_hint": 4,
       "op_family": "average",
@@ -510,19 +518,19 @@
         {
           "level_id": "silu-8-6",
           "kp_id": "g4_bar_chart",
-          "brief": "四样货品的平均价格是多少元？",
+          "brief": "各样货品的平均价格是多少元？",
           "data_hint": "menu"
         },
         {
           "level_id": "silu-8-7",
           "kp_id": "g4_bar_chart",
-          "brief": "五样货品求平均，先算总价。",
+          "brief": "求这组货品的平均价，先算总价。",
           "data_hint": "menu"
         },
         {
           "level_id": "silu-8-8",
           "kp_id": "g5_line_chart",
-          "brief": "五样价格相差较大，平均数多少？",
+          "brief": "价格相差较大，平均数要算准。",
           "data_hint": "menu"
         },
         {
@@ -537,6 +545,7 @@
       "stage": 9,
       "name": "比价",
       "theme": "同一批货，换一家买结果不同",
+      "scene": "撒马尔罕市集",
       "role_focus": "老掌柜",
       "grade_hint": 6,
       "op_family": "discount",

@@ -440,6 +440,7 @@ def list_stages(story: Optional[str] = None) -> List[Dict[str, Any]]:
                 "story_name": str(data.get("name") or sid),
                 "stage": int(stage.get("stage", 0)),
                 "name": str(stage.get("name", "")),
+                "scene": str(stage.get("scene", "")),
                 "theme": str(stage.get("theme", "")),
                 "role_focus": str(stage.get("role_focus", "")),
                 "grade_hint": int(stage.get("grade_hint", 0)),
@@ -529,6 +530,7 @@ def get_level(level_id: str, story: Optional[str] = None) -> Dict[str, Any]:
             "story_name": str(data.get("name") or sid),
             "stage": int(stage.get("stage", 0)),
             "stage_name": str(stage.get("name", "")),
+            "scene": str(stage.get("scene", "")),
             "theme": str(stage.get("theme", "")),
             "role_focus": str(stage.get("role_focus", "")),
             "grade_hint": int(stage.get("grade_hint", 0)),
@@ -570,9 +572,18 @@ def _ctx(level: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
         # 角色一律从故事线 JSON 读，代码里不再硬编码任何人物名。
         "role": str(level.get("role_focus") or roles.get("review") or "领队"),
         "stage_name": str(level.get("stage_name") or "路上"),
+        # scene 是「这条线这一关发生在哪儿」的具体地点（如「桃园林间」「淡水舱」）。
+        # 关名（如「南京启航」）是事件名，不能当地点用，否则会拼出「在南京启航歇脚」这种病句。
+        "scene": str(level.get("scene") or ""),
         "story": story_id,
         "story_name": str(level.get("story_name") or storyline_name(story_id)),
     }
+
+
+def _place(ctx: Dict[str, Any]) -> str:
+    """把 scene 渲染成状语；没有 scene 时返回空串（退化成不指定地点的写法）。"""
+    scene = str(ctx.get("scene") or "").strip()
+    return f"在{scene}" if scene else ""
 
 
 def _pick_many(rng: random.Random, pool: List[Dict[str, Any]], count: int) -> List[Dict[str, Any]]:
@@ -590,7 +601,8 @@ def _pick_many(rng: random.Random, pool: List[Dict[str, Any]], count: int) -> Li
 
 def _stage_1_add(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """题型一：万以内加减法 —— 合并几样餐品的热量。"""
-    n = 2 + (ctx["difficulty"] - 1) // 3
+    # 样数随难度 2→7 递增（不再只分 2/3/4 三档），9 难因此产生 6 种不同题面。
+    n = 2 + (ctx["difficulty"] - 1) * 5 // 8
     picks = _pick_many(ctx["rng"], ctx["foods"], n)
     kcal = [int(item["kcal"]) for item in picks]
     total = sum(kcal)
@@ -606,7 +618,7 @@ def _stage_1_add(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "role": ctx["role"],
-        "story": f"{ctx['role']}在{ctx['stage_name']}歇脚，把今天的餐品摆开：{names}。"
+        "story": f"{ctx['role']}{_place(ctx)}清点今天的餐品：{names}。"
                  f"他想先弄清楚这一份加起来一共有多少能量。",
         "question": f"这 {n} 样餐品一共多少千卡？",
         "data_table": _table("今日餐品营养（真实数据）", ["餐品", "能量（千卡）", "净含量（克）"], rows),
@@ -708,7 +720,7 @@ def _stage_3_mul(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "role": ctx["role"],
-        "story": f"{ctx['role']}在{ctx['stage_name']}的点单台前，看到{meal['name']}每份 {fmt_money(price)} 元。"
+        "story": f"{ctx['role']}{_place(ctx)}看到{meal['name']}每份 {fmt_money(price)} 元。"
                  f"今天的用餐计划需要 {qty} 份，他先在心里把金额算了一遍。",
         "question": f"每份{meal['name']} {fmt_money(price)} 元，{qty} 份一共多少元？",
         "data_table": _table(
@@ -746,7 +758,7 @@ def _stage_4_div(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "role": ctx["role"],
-        "story": f"{ctx['role']}在{ctx['stage_name']}的积分台前，手里有 {total_points} 积分。"
+        "story": f"{ctx['role']}{_place(ctx)}清点手里的 {total_points} 积分。"
                  f"他想换{product['name']}，每份需要 {unit_points} 积分。",
         "question": f"用 {total_points} 积分兑换需要 {unit_points} 积分的{product['name']}，最多能兑换几份？",
         "data_table": _table(
@@ -788,13 +800,14 @@ def _stage_5_unit(ctx: Dict[str, Any]) -> Dict[str, Any]:
     candidates = [item for item in ctx["foods"] if item["weight"] > 0] or ctx["foods"]
     food = ctx["rng"].choice(candidates)
     weight = Decimal(food["weight"])
-    qty = min(6, 2 + (ctx["difficulty"] - 1))
+    # 份数随难度 2→9 递增（原来封顶 6，只能出 5 种题面）。
+    qty = min(9, 2 + (ctx["difficulty"] - 1))
     total_g = weight * qty
     total_kg = (total_g / Decimal("1000")).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
 
     return {
         "role": ctx["role"],
-        "story": f"{ctx['role']}要把{ctx['stage_name']}的物资称一称。{food['name']}每份净含量 {fmt_num(weight)} 克，"
+        "story": f"{ctx['role']}{_place(ctx)}把东西过了一遍秤：{food['name']}每份净含量 {fmt_num(weight)} 克，"
                  f"一共准备了 {qty} 份，需要按千克登记。",
         "question": f"每份{food['name']}净含量 {fmt_num(weight)} 克，{qty} 份一共多少千克？",
         "data_table": _table(
@@ -846,7 +859,7 @@ def _stage_6_time(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "role": ctx["role"],
-        "story": f"{ctx['role']}要去{ctx['stage_name']}对岸。活动期「{campaign['name']}」从 "
+        "story": f"{ctx['role']}{_place(ctx)}准备出发走一程。活动期「{campaign['name']}」从 "
                  f"{start.strftime('%Y-%m-%d')} 持续到 {end.strftime('%Y-%m-%d')}，两头都算。"
                  f"队伍计划每天走 {daily_km} 千米。",
         "question": f"活动期一共多少天？按每天走 {daily_km} 千米计算，这些天一共走多少千米？",
@@ -878,11 +891,20 @@ def _stage_6_time(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _stage_7_percent(ctx: Dict[str, Any]) -> Dict[str, Any]:
-    """题型七：分数与百分数 —— 蛋白质供能占比。"""
+    """题型七：分数与百分数 —— 蛋白质供能占比。
+
+    数据里只有「蛋白质」这一个营养素字段（没有脂肪 / 碳水），所以不做营养素轮换，
+    改为**按难度在真实餐品里轮换取样**：按总能量从低到高排序后等距取 9 个位置，
+    9 难分别对应不同的餐品与能量档位（35～570 千卡），既保证 9 道题面互不相同，
+    也让「部分占整体」的比例随数据真实变化。
+    """
     candidates = [item for item in ctx["foods"] if item["protein"] > 0 and item["kcal"] > 0]
     if not candidates:
         candidates = ctx["foods"]
-    food = ctx["rng"].choice(candidates)
+    candidates = sorted(candidates, key=lambda item: (int(item["kcal"]), str(item["name"])))
+    span = len(candidates)
+    index = (ctx["difficulty"] - 1) * (span - 1) // 8 if span > 1 else 0
+    food = candidates[max(0, min(span - 1, index))]
     protein = Decimal(food["protein"])
     energy = Decimal(food["kcal"])
     part = protein * Decimal("4")
@@ -895,7 +917,7 @@ def _stage_7_percent(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "role": ctx["role"],
-        "story": f"{ctx['role']}在看{ctx['stage_name']}的营养标签。{food['name']}含蛋白质 "
+        "story": f"{ctx['role']}{_place(ctx)}翻看营养标签：{food['name']}含蛋白质 "
                  f"{fmt_num(protein)} 克，整份能量 {int(energy)} 千卡。每克蛋白质大约提供 4 千卡能量。",
         "question": f"{food['name']}中，蛋白质提供的能量约占总能量的百分之几？（百分号前保留一位小数）",
         "data_table": _table(
@@ -925,7 +947,8 @@ def _stage_7_percent(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 def _stage_8_average(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """题型八：统计与平均数 —— 平均价格。"""
-    n = 3 + (ctx["difficulty"] - 1) // 3
+    # 样数随难度 3→7 递增（原来只有 3/4/5 三档）。
+    n = 3 + (ctx["difficulty"] - 1) // 2
     picks = _pick_many(ctx["rng"], ctx["meals"], n)
     total = sum((item["price"] for item in picks), Decimal("0"))
     average = (total / Decimal(n)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -935,7 +958,7 @@ def _stage_8_average(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "role": ctx["role"],
-        "story": f"{ctx['role']}在{ctx['stage_name']}核对账目：{names} 的价格各不相同，"
+        "story": f"{ctx['role']}{_place(ctx)}核对账目：{names}的价格各不相同，"
                  f"他想用一个数概括这几样的价格水平。",
         "question": f"这 {n} 样餐品的平均价格是多少元？（保留两位小数）",
         "data_table": _table("今日菜单（真实数据）", ["餐品", "单价（元）"], rows),
@@ -960,27 +983,22 @@ def _stage_8_average(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _stage_9_discount(ctx: Dict[str, Any]) -> Dict[str, Any]:
-    """题型九：折扣与方案比较 —— 用最少的实付金额。"""
+    """题型九：折扣与方案比较 —— 用最少的实付金额。
+
+    券的数据只有「满减券」一种（没有折扣券、也没有叠加规则），所以不做券种轮换，
+    改为**按难度轮换购物篮**：样数在 2～5 之间循环、起点逐级错开，
+    使 9 难的篮子金额互不相同 —— 由此 9 道题面互不相同，且能自然出现
+    「一张券都没达标、只能按原价付」的情形（最容易被忽略的一种判断）。
+    """
     coupons = ctx["coupons"]
-    max_threshold = max(coupon["threshold"] for coupon in coupons)
-    picks: List[Dict[str, Any]] = []
-    basket = Decimal("0")
+    difficulty = ctx["difficulty"]
     pool = sorted(ctx["meals"], key=lambda item: item["price"], reverse=True)
-    # 篮子最多 4 样：既够达到常见门槛，又不会把题目变成十几项连加。
-    # 门槛极高（真实接口出现「满 999 减 X」之类）时，取前 4 样走「无券达标」分支。
-    max_items = min(4, len(pool))
-    for meal in pool[:max_items]:
-        picks.append(meal)
-        basket += meal["price"]
-        if len(picks) >= 3 and basket >= max_threshold:
-            break
-    if len(picks) < 3:  # 菜单条数不足时的兜底
-        for meal in pool:
-            if meal not in picks:
-                picks.append(meal)
-                basket += meal["price"]
-            if len(picks) >= 3:
-                break
+    count = min(2 + (difficulty - 1) % 4, len(pool))
+    start = (difficulty - 1) % max(1, len(pool) - count + 1)
+    picks: List[Dict[str, Any]] = list(pool[start:start + count])
+    while len(picks) < 2:  # 菜单条数不足时的兜底
+        picks.append(pool[len(picks) % len(pool)])
+    basket = sum((item["price"] for item in picks), Decimal("0"))
 
     applicable = [coupon for coupon in coupons if basket >= coupon["threshold"]]
     no_coupon = not applicable
@@ -990,10 +1008,17 @@ def _stage_9_discount(ctx: Dict[str, Any]) -> Dict[str, Any]:
         best = max(applicable, key=lambda coupon: coupon["discount"])
     pay = basket - best["discount"]
     names = "、".join(item["name"] for item in picks)
-    coupon_text = "；".join(
-        f"{coupon['name']}（满 {fmt_num(coupon['threshold'])} 元减 {fmt_num(coupon['discount'])} 元）"
-        for coupon in coupons
-    )
+
+    def _coupon_label(coupon: Dict[str, Any]) -> str:
+        """券名里若已经写明门槛与面额，就不要再重复括号说明。"""
+        name = str(coupon["name"])
+        threshold_text = fmt_num(coupon["threshold"])
+        discount_text = fmt_num(coupon["discount"])
+        if threshold_text in name and discount_text in name:
+            return name
+        return f"{name}（满 {threshold_text} 元减 {discount_text} 元）"
+
+    coupon_text = "；".join(_coupon_label(coupon) for coupon in coupons)
 
     rows = [[item["name"], fmt_money(item["price"])] for item in picks]
     if no_coupon:
@@ -1015,7 +1040,7 @@ def _stage_9_discount(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "role": ctx["role"],
-        "story": f"{ctx['role']}在{ctx['stage_name']}结算，篮子里是{names}，按需购买不多拿。"
+        "story": f"{ctx['role']}{_place(ctx)}结算，篮子里是{names}，按需购买不多拿。"
                  f"手上有这些券：{coupon_text}。",
         "question": question,
         "data_table": _table("菜单与优惠券（真实数据）", ["项目", "金额（元）"], rows),
@@ -1329,6 +1354,7 @@ def generate(
             "story_name": str(story_data.get("name") or sid),
             "stage": int(stage.get("stage", 0)),
             "stage_name": str(stage.get("name", "")),
+            "scene": str(stage.get("scene", "")),
             "theme": str(stage.get("theme", "")),
             "role_focus": str(stage.get("role_focus", "")),
             "grade_hint": int(stage.get("grade_hint", 0)),
