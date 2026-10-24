@@ -110,11 +110,11 @@ def _stage_key(story_id: str, stage: int) -> str:
 
 
 def _render_stage_map(story: Optional[str] = None) -> str:
-    """渲染某条故事线的九关地图（含通关状态）。"""
+    """渲染某条故事线的九关地图（含通关状态、锁定状态与最高品阶）。"""
     sid = str(story or problem_gen.default_story())
     data = problem_gen.load_storyline(sid)
-    clears = progress.get_stage_clears(sid)
-    cleared_count = len(clears)
+    clears = progress.get_clear_map(sid)
+    cleared_count = journey.cleared_stage_count(sid, clears)
     lines: List[str] = []
     lines.append(_rule("═"))
     lines.append(f"  {data.get('name', sid)} · 九关八十一难")
@@ -123,17 +123,23 @@ def _render_stage_map(story: Optional[str] = None) -> str:
     lines.append("  题目里的数字都是真的，答案由麦当劳 MCP 真实计算校验")
     lines.append(_rule("═"))
     for stage in problem_gen.list_stages(sid):
-        key = _stage_key(sid, stage["stage"])
-        cleared = clears.get(key)
-        if cleared:
-            mark = "★" * int(cleared["stars"]) + "☆" * (3 - int(cleared["stars"]))
+        number = int(stage["stage"])
+        record = clears.get(_stage_key(sid, number))
+        if record:
+            stars = int(record.get("stars") or 1)
+            mark = "★" * stars + "☆" * (3 - stars)
             status = f"已通关 {mark}"
+            tier = record.get("best_tier")
+            if tier:
+                status += f"　{journey.TIER_MARKS.get(tier, '')} {journey.tier_label(tier)}"
+        elif not journey.is_stage_unlocked(sid, number, clears):
+            status = f"🔒 第 {number} 关（需先通关第 {number - 1} 关）"
         else:
-            stats = progress.stage_accuracy(stage["stage"], sid)
+            stats = progress.stage_accuracy(number, sid)
             if stats["attempts"]:
-                status = f"进行中（{stats['correct_levels']}/{stage['level_count']} 难已答对）"
+                status = f"可挑战（{stats['correct_levels']}/{stage['level_count']} 难已答对）"
             else:
-                status = "未开始"
+                status = "可挑战（还没开始）"
         lines.append(
             f"  第 {stage['stage']} 关  {_pad(stage['name'], 12)}"
             f"（{stage['grade_hint']} 年级 / {stage['level_count']} 难）  {status}"
@@ -245,6 +251,63 @@ def cmd_stages(args: argparse.Namespace) -> int:
     return 0
 
 
+def _all_clear_summary(
+    clears: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> List[str]:
+    """五条线全部通关后的总结（有一条线没走完就返回空列表）。
+
+    Args:
+        clears: 通关表；``None`` 时现读一次库。
+
+    Returns:
+        若干行文本：总角色数、各品阶数量、建议重玩的高价值关卡。
+    """
+    clear_map = clears if clears is not None else progress.get_clear_map()
+    order = journey.storyline_order()
+    if any(
+        journey.cleared_stage_count(sid, clear_map) < journey.STAGE_COUNT for sid in order
+    ):
+        return []
+
+    collection = progress.get_collection()
+    total_chars = sum(characters.count(sid)["total"] for sid in order)
+    collected = sum(1 for record in collection.values() if record.get("story") in order)
+    intros = sum(1 for record in collection.values() if record.get("story") in order and record.get("intro_unlocked"))
+    tiers = {"gold": 0, "silver": 0, "bronze": 0}
+    for sid in order:
+        for number in range(1, journey.STAGE_COUNT + 1):
+            record = clear_map.get(journey.stage_key(sid, number)) or {}
+            tier = record.get("best_tier")
+            if tier in tiers:
+                tiers[tier] += 1
+
+    rank = journey.tier_order()
+    rows: List[Any] = []
+    for sid in order:
+        for number in range(1, journey.STAGE_COUNT + 1):
+            record = clear_map.get(journey.stage_key(sid, number)) or {}
+            if not record.get("cleared"):
+                continue
+            rows.append((rank.get(record.get("best_tier"), 0), sid, number, record.get("best_tier")))
+    rows.sort(key=lambda item: (item[0], item[2], item[1]))
+    replay = [
+        f"{journey.storyline_name(sid)}第 {number} 关（{journey.tier_label(tier)}）"
+        for _, sid, number, tier in rows[:3]
+    ]
+
+    lines = [
+        _rule("═"),
+        f"  🎉 全部取经完成：{len(order)} 条故事线 {len(order) * journey.STAGE_COUNT} 关都走完了",
+        f"  角色收集 {collected}/{total_chars}　｜　介绍解锁 {intros} 张",
+        f"  品阶分布：黄金 {tiers['gold']} 关 / 白银 {tiers['silver']} 关 / 青铜 {tiers['bronze']} 关",
+    ]
+    if replay:
+        lines.append("  值得重玩（品阶最低的 3 关）：" + "、".join(replay))
+    lines.append("  同一关可以无限重玩，品阶取历史最优；介绍解锁后不会回锁。")
+    lines.append(_rule("═"))
+    return lines
+
+
 def cmd_stories(_: argparse.Namespace) -> int:
     """列出故事线注册表与解锁进度（含未上线的线）。"""
     clears = progress.get_clear_map()
@@ -278,6 +341,8 @@ def cmd_stories(_: argparse.Namespace) -> int:
     print(f"  解锁顺序：{' → '.join(journey.storyline_name(sid) for sid in order)}")
     print("  规则：每条线第 1 关默认可玩；第 k 关要先通关第 k-1 关；下一条线要先走完上一条线的 9 关。")
     print("  用法：python scripts/cli.py play --level 3　（进入第 3 关）")
+    for line in _all_clear_summary(clears):
+        print(line)
     print(f"  {DISCLAIMER}")
     return 0
 
@@ -553,17 +618,27 @@ def _play_stage(args: argparse.Namespace, sid: str, stage: int) -> int:
             + (f"（{_names(fresh_intros)}）" if fresh_intros else "")
         )
     else:
-        print("  角色卡 +0（跳过过题目，本场不收卡）｜介绍解锁 0 张")
+        print("  角色卡 +0（跳过题目，本场不收卡）｜介绍解锁 0 张")
     print(f"  通关：第 {stage} 关 {'★' * stars}{'☆' * (3 - stars)}")
     print(f"  说明：{journey.load_rules().get('transition_note', '')}")
     updated = progress.get_clear_map()
     cleared = journey.cleared_stage_count(sid, updated)
-    unlocked_stage = cleared + 1 if cleared < journey.STAGE_COUNT else journey.STAGE_COUNT
     print(f"  {story_info['name']}：已通关 {cleared}/{journey.STAGE_COUNT} 关")
-    if cleared < journey.STAGE_COUNT:
-        print(f"  下一关（第 {unlocked_stage} 关）已解锁：python scripts/cli.py play --story {sid} --stage {unlocked_stage}")
+    next_stage = 0
+    for number in range(1, journey.STAGE_COUNT + 1):
+        record = updated.get(journey.stage_key(sid, number)) or {}
+        if not record.get("cleared"):
+            next_stage = number
+            break
+    if next_stage:
+        print(
+            f"  现在最早可玩的是第 {next_stage} 关："
+            f"python scripts/cli.py play --story {sid} --stage {next_stage}"
+        )
     else:
         print("  这条线 9 关走完了，可以看看下一条线解锁了没有：python scripts/cli.py stories")
+    for line in _all_clear_summary(updated):
+        print(line)
     print(f"  {DISCLAIMER}")
     print(_rule("═"))
     return 0

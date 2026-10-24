@@ -394,7 +394,11 @@ def check_characters_data() -> Tuple[List[str], int, int, int]:
 
 
 def check_scene_red_lines() -> Tuple[List[str], int]:
-    """校验 5 条线的场景修饰语：数量、结尾形式、红线词。
+    """校验 5 条线的场景修饰语：数量、语法、红线词，以及「修饰语 × 地点」的语义冲突。
+
+    冲突判定的做法：用关键词给地点打标签（火焰山=热、舱/房/堂=室内、码头/渡口/外海=水边……），
+    再给带地点语义的修饰语写「需要 / 排斥」的标签；两者对不上就算冲突。
+    纯时间词（清早/半晌/午后/黄昏/天刚亮/入夜前/归途中等）不携带地点语义，因此不产生冲突。
 
     Returns:
         ``(问题列表, 修饰语总数)``。
@@ -418,13 +422,78 @@ def check_scene_red_lines() -> Tuple[List[str], int]:
             if hit:
                 problems.append(f"{sid}：修饰语「{text}」命中红线词：{'、'.join(sorted(set(hit)))}")
         for stage in range(1, 10):
-            for text in journey.stage_scenes(sid, stage):
+            place = journey.scene_place(sid, stage)
+            tags = _place_tags(place)
+            scenes = journey.stage_scenes(sid, stage)
+            for text in scenes:
                 if text.endswith("的"):
                     problems.append(f"{sid} 第 {stage} 关：场景文本以「的」结尾（{text}）")
-                if len(set(journey.stage_scenes(sid, stage))) != 10:
-                    problems.append(f"{sid} 第 {stage} 关：10 条场景文本有重复")
-                    break
+                if "的的" in text or "，，" in text or "，的" in text:
+                    problems.append(f"{sid} 第 {stage} 关：场景文本有叠字/叠标点（{text}）")
+            if len(set(scenes)) != 10:
+                problems.append(f"{sid} 第 {stage} 关：10 条场景文本有重复")
+            for variant in variants:
+                reason = _scene_conflict(variant, tags)
+                if reason:
+                    problems.append(
+                        f"{sid} 第 {stage} 关：修饰语「{variant}」× 地点「{place}」冲突（{reason}）"
+                    )
     return problems, total
+
+
+_PLACE_TAG_KEYWORDS: Dict[str, Tuple[str, ...]] = {
+    "hot": ("火焰山",),
+    "water": ("渡口", "码头", "船坞", "舱", "外海", "水泊", "风信台"),
+    "indoor": ("舱", "房", "堂", "馆", "案前", "耳房", "帐中"),
+    "market": ("市", "集", "秤房", "粮场", "铺"),
+    "post": ("营", "校场", "点将台", "账桌", "风信台"),
+    "field": ("粮场", "校场", "林"),
+}
+"""地点标签：靠地点名里的关键词判定，规则短到可以一眼读完。"""
+
+_SCENE_VARIANT_RULES: Dict[str, Dict[str, Tuple[str, ...]]] = {
+    "雪化后的": {"forbids": ("hot",)},
+    "落雪后的": {"forbids": ("hot",)},
+    "雨后": {"forbids": ("ship", "tent")},
+    "雨后的": {"forbids": ("ship", "tent")},
+    "雨前": {"forbids": ("ship", "tent")},
+    "雨前的": {"forbids": ("ship", "tent")},
+    "赶集日的": {"requires": ("market",)},
+    "开市日的": {"requires": ("market",)},
+    "收摊前的": {"requires": ("market",)},
+    "开秤前的": {"requires": ("market",)},
+    "收粮日的": {"requires": ("field",)},
+    "点卯前的": {"requires": ("post",)},
+    "擂鼓时的": {"requires": ("post",)},
+    "传令时的": {"requires": ("post",)},
+    "值更时的": {"requires": ("post",)},
+    "灯下的": {"requires": ("indoor",)},
+    "候潮时的": {"requires": ("water",)},
+}
+"""带地点语义的修饰语：一旦换回这类词，冲突矩阵会立刻报出来。"""
+
+
+def _place_tags(place: str) -> set:
+    """把地点名映射成标签集合。"""
+    return {
+        tag
+        for tag, keywords in _PLACE_TAG_KEYWORDS.items()
+        if any(word in str(place) for word in keywords)
+    }
+
+
+def _scene_conflict(variant: str, tags: set) -> str:
+    """判断「修饰语 × 地点」是否有语义冲突，返回原因（无冲突返回空串）。"""
+    rule = _SCENE_VARIANT_RULES.get(str(variant))
+    if not rule:
+        return ""
+    for need in rule.get("requires", ()):  # type: ignore[union-attr]
+        if need not in tags:
+            return f"需要「{need}」类地点"
+    for bad in rule.get("forbids", ()):  # type: ignore[union-attr]
+        if bad in tags:
+            return f"与「{bad}」类地点相斥"
+    return ""
 
 
 # ---------------------------------------------------------------------------

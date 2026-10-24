@@ -241,17 +241,24 @@ python scripts/cli.py play --story sanguo --stage 3       # 同上，指定故�
 python scripts/cli.py play --level 3-2                    # 旧的单题模式，行为完全不变
 python scripts/cli.py characters                          # 角色图鉴（未遇见 / 已收集待解锁 / 已解锁）
 python scripts/cli.py characters --story xiyou --unlocked-only
+python scripts/cli.py stages --story xiyou                # 9 关的锁定态、最高品阶徽记
 python scripts/cli.py stories                             # 5 条线的解锁进度与锁状态
 ```
 
 未解锁的关卡 `exit=2` 且只给一句友好提示（`第 4 关尚未解锁（需先通关第 3 关）`），不会抛 traceback。
+`stages` 会按解锁状态分三档显示：已通关（带星级与最高品阶徽记）、可挑战、`🔒 第 k 关（需先通关第 k-1 关）`。
+五条线 45 关全部走完后，`stories` 与演示页的角色图鉴会额外给出一段总结：
+角色收集数、金/银/铜各多少关、以及品阶最低的 3 关（建议重玩）。
 
 **演示页**：故事线锁、关卡锁、守关者剪影、10 选 1 的场景文本、逐题计时、结算页（用时 / 基准 /
 ratio / 品阶徽记）、角色卡入手、图鉴三状态，进度按 `story` 分桶写进 `localStorage`；
 **中途刷新视为作废**（结算前不落盘，所以不会记录半场的品阶）。
 题库、规则参数、角色库与固定用例全部由 `export_demo_bank.py` 从 Python 端导出后注入，
-禁止手写；规则参数与 CLI 是同一份 `data/run_rules.json`，因此两端品阶判定一致——
-自检里有 135 条固定用例，逐条比对「演示页 JS 抽到的」与「Python 抽到的」是否相同。
+禁止手写；规则参数与 CLI 是同一份 `data/run_rules.json`，抽样算法与品阶判定的实现也按同一份规则写。
+导出文件里带 135 条固定用例（`bank.vectors`，5 线 × 9 关 × 3 个 seed），**可以用
+`journey.draw_run` 在 Python 侧重算复核**，`selfcheck.py` 跑的就是这一层；
+演示页 JS 与 Python 抽到的是否逐位一致，是在开发期用 node + DOM 桩（自己搭的最小 DOM 桩，
+不开浏览器）手工比对过的，这个比对脚本不随仓库发布，`selfcheck` 也不会执行页面里的 JS。
 
 ## 五、安装
 
@@ -458,7 +465,8 @@ mcd-math-journey/
 **用当前代码把演示题库重新导出一遍**，与 `demo/bank.json` 和 `demo/index.html` 的内联题库三方比对（两边一起改错也会被抓到）；
 README 里的「405 个关卡位 / 81 关 / 81 条不同题面」与实际出题结果一致；
 以及闯关系统的那一批规则断言（解锁链、故事线链、1000 个 seed 的随机覆盖、可复现、品阶五个边界、
-收集与介绍解锁、两端 135 条固定用例一致、70 条角色介绍与 50 条场景修饰语的红线词）。
+收集与介绍解锁、135 条固定用例与 Python 重算结果一致、70 条角色介绍与 50 条场景修饰语的红线词）。
+上面这些断言全部跑在 Python 侧；演示页里的 JS 不在 `selfcheck` 的检查范围内（见 4.6 节末尾的说明）。
 改了出题模板、CLI 输出、角色文案或故事线数据后跑一次即可。
 
 ## 九、数据与隐私说明
