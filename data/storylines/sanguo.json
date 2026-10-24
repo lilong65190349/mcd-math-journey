@@ -26,13 +26,13 @@
         {
           "level_id": "sanguo-1-1",
           "kp_id": "g3_add_sub",
-          "brief": "把两份粮草的热量合并，一共多少千卡？",
+          "brief": "把两份干粮的热量合并，一共多少千卡？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "sanguo-1-2",
           "kp_id": "g3_add_sub",
-          "brief": "两份干粮的热量相加，合计多少千卡？",
+          "brief": "先估一估热量范围，再逐样相加，合计多少？",
           "data_hint": "nutrition"
         },
         {
@@ -44,7 +44,7 @@
         {
           "level_id": "sanguo-1-4",
           "kp_id": "g3_add_sub",
-          "brief": "三样粮草的热量接着相加，共多少千卡？",
+          "brief": "把各样干粮的热量接连相加，共多少千卡？",
           "data_hint": "nutrition"
         },
         {
@@ -92,7 +92,7 @@
         {
           "level_id": "sanguo-2-1",
           "kp_id": "g3_multi_sub",
-          "brief": "预算有限，先减去两样粮草，还剩多少？",
+          "brief": "预算有限，先减去两样干粮，还剩多少？",
           "data_hint": "nutrition"
         },
         {
@@ -104,43 +104,43 @@
         {
           "level_id": "sanguo-2-3",
           "kp_id": "g3_multi_sub",
-          "brief": "两样粮草用掉，预算还剩多少千卡？",
+          "brief": "两样干粮用掉，预算还剩多少千卡？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "sanguo-2-4",
           "kp_id": "g3_multi_sub",
-          "brief": "三样粮草的千卡一起减掉，预算剩多少？",
+          "brief": "三样干粮的千卡一起减掉，预算剩多少？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "sanguo-2-5",
           "kp_id": "g3_multi_sub",
-          "brief": "先求三样粮草总量，再从预算里减。",
+          "brief": "先求三样干粮总量，再从预算里减。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "sanguo-2-6",
           "kp_id": "g3_multi_sub",
-          "brief": "预算固定，连减三样粮草后还剩多少？",
+          "brief": "预算固定，连减三样干粮后还剩多少？",
           "data_hint": "nutrition"
         },
         {
           "level_id": "sanguo-2-7",
           "kp_id": "g3_multi_sub",
-          "brief": "四样粮草依次减掉，算算预算剩多少。",
+          "brief": "四样干粮依次减掉，算算预算剩多少。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "sanguo-2-8",
           "kp_id": "g3_multi_sub",
-          "brief": "先合并四样粮草，再从预算中扣除。",
+          "brief": "先合并四样干粮，再从预算中扣除。",
           "data_hint": "nutrition"
         },
         {
           "level_id": "sanguo-2-9",
           "kp_id": "g3_multi_sub",
-          "brief": "连减四样粮草，看预算还剩多少千卡。",
+          "brief": "连减四样干粮，看预算还剩多少千卡。",
           "data_hint": "nutrition"
         }
       ]
@@ -224,7 +224,7 @@
         {
           "level_id": "sanguo-4-1",
           "kp_id": "g3_div_basic",
-          "brief": "粮草够分几队？用除法算一算。",
+          "brief": "干粮够分几队？用除法算一算。",
           "data_hint": "points"
         },
         {
@@ -338,7 +338,7 @@
         {
           "level_id": "sanguo-5-9",
           "kp_id": "g4_decimal",
-          "brief": "先算总克数，再换算并保留两位小数。",
+          "brief": "把总克数除以 1000，写成千克。",
           "data_hint": "nutrition"
         }
       ]
@@ -488,7 +488,7 @@
         {
           "level_id": "sanguo-8-1",
           "kp_id": "g4_bar_chart",
-          "brief": "三样粮草价格不同，平均每样多少元？",
+          "brief": "各样干粮价格不同，平均每样多少元？",
           "data_hint": "menu"
         },
         {
@@ -506,7 +506,7 @@
         {
           "level_id": "sanguo-8-4",
           "kp_id": "g4_bar_chart",
-          "brief": "四样粮草求平均价，得多少元？",
+          "brief": "查这几样干粮的平均价，得多少元？",
           "data_hint": "menu"
         },
         {

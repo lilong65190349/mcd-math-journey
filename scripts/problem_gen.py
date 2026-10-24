@@ -601,8 +601,8 @@ def _pick_many(rng: random.Random, pool: List[Dict[str, Any]], count: int) -> Li
 
 def _stage_1_add(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """题型一：万以内加减法 —— 合并几样餐品的热量。"""
-    # 样数随难度 2→7 递增（不再只分 2/3/4 三档），9 难因此产生 6 种不同题面。
-    n = 2 + (ctx["difficulty"] - 1) * 5 // 8
+    # 样数按难度逐级递增 2→10（每档唯一），9 难因此各有不同题面；上限取数据池大小。
+    n = min(len(ctx["foods"]), 2 + (ctx["difficulty"] - 1))
     picks = _pick_many(ctx["rng"], ctx["foods"], n)
     kcal = [int(item["kcal"]) for item in picks]
     total = sum(kcal)
@@ -618,8 +618,9 @@ def _stage_1_add(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "role": ctx["role"],
+        # 「这几样」而不是「这一份」：前面列了 2~10 样，用单数会自相矛盾。
         "story": f"{ctx['role']}{_place(ctx)}清点今天的餐品：{names}。"
-                 f"他想先弄清楚这一份加起来一共有多少能量。",
+                 f"他想先弄清楚这几样加起来一共有多少能量。",
         "question": f"这 {n} 样餐品一共多少千卡？",
         "data_table": _table("今日餐品营养（真实数据）", ["餐品", "能量（千卡）", "净含量（克）"], rows),
         "answer_type": "number",
@@ -661,7 +662,8 @@ def _stage_2_sub(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "role": ctx["role"],
-        "story": f"{ctx['role']}的行程按 {budget} 千卡来安排，路上挑了{names}。"
+        # 千卡是能量单位，不能说「行程按 X 千卡安排」；场景词也一并落进叙述里。
+        "story": f"{ctx['role']}{_place(ctx)}把这一程的餐食额度定在 {budget} 千卡，挑了{names}。"
                  f"他想知道扣掉这些之后还剩多少额度。",
         "question": f"预算 {budget} 千卡，减掉这 {n} 样餐品的热量后，还剩多少千卡？",
         "data_table": _table("本次餐品与预算（真实数据）", ["项目", "能量（千卡）"], rows),
@@ -702,7 +704,8 @@ def _stage_3_mul(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """题型三：乘法与倍数 —— 单价 × 份数。"""
     meal = ctx["rng"].choice(ctx["meals"])
     price: Decimal = meal["price"]
-    qty = min(9, 2 + (ctx["difficulty"] - 1))
+    # 份数按难度 2→10 递增（原上限 9 让 8、9 难撞成同一题）。
+    qty = 2 + (ctx["difficulty"] - 1)
     total = price * qty
     int_part = int(price)
     frac_part = price - Decimal(int_part)
@@ -800,8 +803,8 @@ def _stage_5_unit(ctx: Dict[str, Any]) -> Dict[str, Any]:
     candidates = [item for item in ctx["foods"] if item["weight"] > 0] or ctx["foods"]
     food = ctx["rng"].choice(candidates)
     weight = Decimal(food["weight"])
-    # 份数随难度 2→9 递增（原来封顶 6，只能出 5 种题面）。
-    qty = min(9, 2 + (ctx["difficulty"] - 1))
+    # 份数按难度 2→10 递增（原上限 9 让 8、9 难撞成同一题）。
+    qty = 2 + (ctx["difficulty"] - 1)
     total_g = weight * qty
     total_kg = (total_g / Decimal("1000")).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
 
@@ -947,8 +950,8 @@ def _stage_7_percent(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 def _stage_8_average(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """题型八：统计与平均数 —— 平均价格。"""
-    # 样数随难度 3→7 递增（原来只有 3/4/5 三档）。
-    n = 3 + (ctx["difficulty"] - 1) // 2
+    # 样数按难度 2→10 递增（每档唯一；原 (d-1)//2 让 8-1/8-2 这类题目完全重复）。
+    n = min(len(ctx["meals"]), 2 + (ctx["difficulty"] - 1))
     picks = _pick_many(ctx["rng"], ctx["meals"], n)
     total = sum((item["price"] for item in picks), Decimal("0"))
     average = (total / Decimal(n)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -1030,7 +1033,7 @@ def _stage_9_discount(ctx: Dict[str, Any]) -> Dict[str, Any]:
         hint3 = "先把这几样的价格加起来求出原价；再逐张看门槛，没有券达标时实付就等于原价。"
     else:
         rows.append(["原价合计", fmt_money(basket)])
-        rows.append(["适用券", f"{best['name']} 减 {fmt_num(best['discount'])} 元"])
+        rows.append(["适用券", _coupon_label(best)])
         question = f"这几样餐品原价合计 {fmt_money(basket)} 元，用其中实付金额最少的一张券，需要付多少元？"
         hint2 = "实付 = 原价合计 − 券的面额；把每张能用的券都试一遍，取实付金额最少的那一个。"
         hint3 = (

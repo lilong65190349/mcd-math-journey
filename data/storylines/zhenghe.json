@@ -32,7 +32,7 @@
         {
           "level_id": "zhenghe-1-2",
           "kp_id": "g3_add_sub",
-          "brief": "两份补给热量相加，合计多少千卡？",
+          "brief": "先估一估热量范围，再逐样相加，合计多少？",
           "data_hint": "nutrition"
         },
         {
@@ -44,7 +44,7 @@
         {
           "level_id": "zhenghe-1-4",
           "kp_id": "g3_add_sub",
-          "brief": "三份补给热量接连相加，共多少？",
+          "brief": "把各样补给的热量接连相加，共多少千卡？",
           "data_hint": "nutrition"
         },
         {
@@ -338,7 +338,7 @@
         {
           "level_id": "zhenghe-5-9",
           "kp_id": "g4_decimal",
-          "brief": "先算总克数，再换算并保留两位小数。",
+          "brief": "把总克数除以 1000，写成千克。",
           "data_hint": "nutrition"
         }
       ]
@@ -413,7 +413,7 @@
       "stage": 7,
       "name": "船员比例",
       "theme": "部分与整体：百分之几说的就是这个比",
-      "scene": "舱面案前",
+      "scene": "货舱账房",
       "role_focus": "船主",
       "grade_hint": 5,
       "op_family": "percent",
@@ -479,7 +479,7 @@
       "stage": 8,
       "name": "七日风信",
       "theme": "平均数是最公平的那把尺子",
-      "scene": "风信台",
+      "scene": "风信台下的账桌",
       "role_focus": "匠师",
       "grade_hint": 4,
       "op_family": "average",
@@ -488,7 +488,7 @@
         {
           "level_id": "zhenghe-8-1",
           "kp_id": "g4_bar_chart",
-          "brief": "三样货品价格不同，平均每样多少元？",
+          "brief": "各样货品价格不同，平均每样多少元？",
           "data_hint": "menu"
         },
         {
@@ -506,7 +506,7 @@
         {
           "level_id": "zhenghe-8-4",
           "kp_id": "g4_bar_chart",
-          "brief": "四样货品求平均价，得多少元？",
+          "brief": "查这几样货品的平均价，得多少元？",
           "data_hint": "menu"
         },
         {
