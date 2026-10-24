@@ -96,7 +96,11 @@ def _expected_value(problem: Dict[str, Any]) -> Optional[Decimal]:
 
 
 def _build_items(problem: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """从题目的数据表里构造一份可用于 ``calculate-price`` 的明细。"""
+    """从题目的数据表里构造一份可用于 ``calculate-price`` 的明细。
+
+    菜单类表格第三列是份数（如 ``["燕麦奶铁", "9.90", "3"]``），按实际份数构造，
+    否则复核的篮子与题目不是同一笔账。
+    """
     table = problem.get("data_table") or {}
     columns = [str(col) for col in table.get("columns") or []]
     rows = table.get("rows") or []
@@ -110,7 +114,12 @@ def _build_items(problem: Dict[str, Any]) -> List[Dict[str, Any]]:
         price = data_source.to_decimal(row[1], Decimal("-1"))
         if price < 0:
             continue
-        items.append({"name": name, "price": str(price), "quantity": 1})
+        quantity = 1
+        if len(row) >= 3:
+            parsed = data_source.to_decimal(row[2], Decimal("0"))
+            if parsed >= 1:
+                quantity = int(parsed)
+        items.append({"name": name, "price": str(price), "quantity": quantity})
     return items
 
 

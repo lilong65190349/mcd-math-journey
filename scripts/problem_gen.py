@@ -226,26 +226,22 @@ def load_state(force: bool = False, story: str = DEFAULT_STORY) -> Dict[str, Any
     points = data_source.get_points_products()
     now_info = data_source.get_now()
 
-    foods = [item for item in (_norm_food(r) for r in nutrition.get("data") or []) if item]
-    meal_list = [item for item in (_norm_meal(r) for r in meals.get("data") or []) if item]
-    coupon_list = [item for item in (_norm_coupon(r) for r in coupons.get("data") or []) if item]
-    point_list = [item for item in (_norm_points(r) for r in points.get("data") or []) if item]
-    calendar_list = [item for item in (_norm_calendar(r) for r in calendar.get("data") or []) if item]
+    real_foods = [item for item in (_norm_food(r) for r in nutrition.get("data") or []) if item]
+    real_meals = [item for item in (_norm_meal(r) for r in meals.get("data") or []) if item]
+    real_coupons = [item for item in (_norm_coupon(r) for r in coupons.get("data") or []) if item]
+    real_points = [item for item in (_norm_points(r) for r in points.get("data") or []) if item]
+    real_calendar = [item for item in (_norm_calendar(r) for r in calendar.get("data") or []) if item]
 
     now_payload = now_info.get("data") or {}
     now_dt = _parse_datetime(data_source.pick(now_payload, "datetime", "now", "time", "currentTime", default=""))
     if now_dt is None:
         now_dt = datetime.now().replace(microsecond=0)
 
-    if not foods:
-        foods = [dict(item) for item in _FALLBACK_FOODS]
-    if not meal_list:
-        meal_list = [dict(item) for item in _FALLBACK_MEALS]
-    if not coupon_list:
-        coupon_list = [dict(item) for item in _FALLBACK_COUPONS]
-    if not point_list:
-        point_list = [dict(item) for item in _FALLBACK_POINTS]
-    if not calendar_list:
+    foods = real_foods or [dict(item) for item in _FALLBACK_FOODS]
+    meal_list = real_meals or [dict(item) for item in _FALLBACK_MEALS]
+    coupon_list = real_coupons or [dict(item) for item in _FALLBACK_COUPONS]
+    point_list = real_points or [dict(item) for item in _FALLBACK_POINTS]
+    if not real_calendar:
         calendar_list = [
             {
                 "name": "默认活动期",
@@ -253,6 +249,51 @@ def load_state(force: bool = False, story: str = DEFAULT_STORY) -> Dict[str, Any
                 "end": now_dt.replace(hour=23, minute=59, second=0) + timedelta(days=27),
             }
         ]
+    else:
+        calendar_list = real_calendar
+
+    # 有效数据级别：真实/缓存数据一条都规范化不出来时（字段缺失或结构不兼容），
+    # 题目实际使用的是内置示例数据——级别必须改标注为「示例」，
+    # 宁可降级，也不能出现「表头写实时、数据其实是示例」的失信标注。
+    # 典型场景：available-coupons 只返回券名与状态，没有门槛/面额，
+    # 第 9 关（折扣比较）因此自动降级并标注（示例数据）。
+    raw_sources = {
+        "nutrition": nutrition.get("source"),
+        "menu": meals.get("source"),
+        "coupons": coupons.get("source"),
+        "calendar": calendar.get("source"),
+        "points": points.get("source"),
+        "now": now_info.get("source"),
+    }
+    used_fallback = {
+        "nutrition": not real_foods,
+        "menu": not real_meals,
+        "coupons": not real_coupons,
+        "calendar": not real_calendar,
+        "points": not real_points,
+        "now": False,
+    }
+
+    def _effective_source(key: str) -> str:
+        raw = str(raw_sources.get(key) or "sample")
+        if used_fallback.get(key) and raw != "sample":
+            return "sample"
+        return raw
+
+    def _source_meta(key: str) -> Dict[str, Any]:
+        if used_fallback.get(key):
+            return {"source": "sample", "fetched_at": ""}
+        return {
+            "source": raw_sources.get(key),
+            "fetched_at": {
+                "nutrition": nutrition,
+                "menu": meals,
+                "coupons": coupons,
+                "calendar": calendar,
+                "points": points,
+                "now": now_info,
+            }[key].get("fetched_at"),
+        }
 
     _STATE = {
         "foods": foods,
@@ -261,24 +302,13 @@ def load_state(force: bool = False, story: str = DEFAULT_STORY) -> Dict[str, Any
         "points": point_list,
         "calendar": calendar_list,
         "now": now_dt,
-        "sources": {
-            "nutrition": nutrition.get("source"),
-            "menu": meals.get("source"),
-            "coupons": coupons.get("source"),
-            "calendar": calendar.get("source"),
-            "points": points.get("source"),
-            "now": now_info.get("source"),
-        },
+        "sources": {key: _effective_source(key) for key in raw_sources},
         # 数据级别 + 抓取时间：表格标题要用它标注「（实时数据）/（缓存数据 YYYY-MM-DD）/（示例数据）」，
         # 必须与题目 dict 里的 data_source 同源，否则会出现「表头写实时、字段写示例」的矛盾。
-        "source_meta": {
-            "nutrition": {"source": nutrition.get("source"), "fetched_at": nutrition.get("fetched_at")},
-            "menu": {"source": meals.get("source"), "fetched_at": meals.get("fetched_at")},
-            "coupons": {"source": coupons.get("source"), "fetched_at": coupons.get("fetched_at")},
-            "calendar": {"source": calendar.get("source"), "fetched_at": calendar.get("fetched_at")},
-            "points": {"source": points.get("source"), "fetched_at": points.get("fetched_at")},
-            "now": {"source": now_info.get("source"), "fetched_at": now_info.get("fetched_at")},
-        },
+        # 「fallback」是第 5 关专用级别：净含量（克）在当前 MCP 只读工具里不提供，
+        # 该关在没有真实净含量时改用内置示例餐品，并以（示例数据）如实标注。
+        "source_meta": {key: _source_meta(key) for key in raw_sources}
+        | {"fallback": {"source": "sample", "fetched_at": ""}},
     }
     return _STATE
 
@@ -620,7 +650,14 @@ def _stage_1_add(ctx: Dict[str, Any]) -> Dict[str, Any]:
     total = sum(kcal)
     names = "、".join(item["name"] for item in picks)
 
-    rows = [[item["name"], str(item["kcal"]), str(item["weight"])] for item in picks]
+    # 净含量列仅在数据里真的有净含量时出现：MCP 营养接口不提供克数，
+    # 此时不能拿 0 充数——宁可少一列，也不能显示假数据。
+    has_weight = all(item["weight"] > 0 for item in picks)
+    rows = [[item["name"], str(item["kcal"])] for item in picks]
+    columns = ["餐品", "能量（千卡）"]
+    if has_weight:
+        columns.append("净含量（克）")
+        rows = [row + [str(item["weight"])] for row, item in zip(rows, picks)]
     if n >= 3:
         hint3 = f"先算前两样：{kcal[0]} + {kcal[1]} = {kcal[0] + kcal[1]} 千卡。"
     else:
@@ -634,7 +671,7 @@ def _stage_1_add(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "story": f"{ctx['role']}{_place(ctx)}清点今天的餐品：{names}。"
                  f"他想先弄清楚这几样加起来一共有多少能量。",
         "question": f"这 {n} 样餐品一共多少千卡？",
-        "data_table": _table("今日餐品营养（真实数据）", ["餐品", "能量（千卡）", "净含量（克）"], rows),
+        "data_table": _table("今日餐品营养（真实数据）", columns, rows),
         "answer_type": "number",
         "answer": str(total),
         "unit": "千卡",
@@ -812,7 +849,12 @@ def _stage_4_div(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 def _stage_5_unit(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """题型五：小数与单位换算 —— 克换算成千克。"""
-    candidates = [item for item in ctx["foods"] if item["weight"] > 0] or ctx["foods"]
+    # 净含量（克）在当前 MCP 只读工具里不提供（营养接口只有能量/蛋白质等）。
+    # 有真实净含量就用真实的；一条都没有时改用内置示例餐品，
+    # 并把 primary_source 标成 fallback——题面会如实显示「（示例数据）」。
+    weighted = [item for item in ctx["foods"] if item["weight"] > 0]
+    use_fallback = not weighted
+    candidates = weighted if weighted else [dict(item) for item in _FALLBACK_FOODS]
     food = ctx["rng"].choice(candidates)
     weight = Decimal(food["weight"])
     # 份数按难度 2→10 递增（原上限 9 让 8、9 难撞成同一题）。
@@ -851,7 +893,7 @@ def _stage_5_unit(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "kg": str(total_kg),
             "expected": str(total_kg),
         },
-        "primary_source": "nutrition",
+        "primary_source": "fallback" if use_fallback else "nutrition",
     }
 
 

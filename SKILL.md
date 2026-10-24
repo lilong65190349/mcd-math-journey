@@ -69,7 +69,7 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 | `list-nutrition-foods` | 营养信息（能量 / 蛋白质 / 净含量） | 加减、连减、单位换算、百分数 |
 | `query-meal-detail` | 单个餐品详情 | 单题取数校验 |
 | `calculate-price` | 官方价格计算 | **答案复核**（核心） |
-| `available-coupons` | 麦麦省券面额与门槛 | 折扣与方案比较 |
+| `available-coupons` | 麦麦省券列表（仅券名/状态，无门槛面额） | 折扣与方案比较（实时数据缺面额时降级为示例数据并如实标注） |
 | `campaign-calendar` | 活动起止时间 | 时间与行程 |
 | `mall-points-products` | 积分商品所需积分 | 除法与余数 |
 | `now-time-info` | 当前时间 | 时间类题的基准 |

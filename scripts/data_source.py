@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -58,6 +59,20 @@ SOURCE_LABELS: Dict[str, str] = {
 
 _SAMPLE_CACHE: Optional[Dict[str, Any]] = None
 _CLIENT: Optional[McpClient] = None
+
+DEFAULT_STORE_CODE: str = "1420830"
+"""``query-meals`` 的默认门店编码（麦当劳海口龙湖光年餐厅，真实营业中）。
+
+麦当劳 MCP 的 ``query-meals`` 必须带 ``storeCode + orderType + beType`` 三个参数。
+门店编码可用环境变量 ``MCD_STORE_CODE`` 覆盖成自己城市的门店
+（编码可从麦当劳 App 或 MCP 的 ``query-nearby-stores`` 工具获取）。
+"""
+STORE_CODE_ENV: str = "MCD_STORE_CODE"
+
+
+def current_store_code() -> str:
+    """当前用于查询菜单的门店编码（环境变量优先，其次默认值）。"""
+    return (os.environ.get(STORE_CODE_ENV) or "").strip() or DEFAULT_STORE_CODE
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +190,157 @@ def as_records(payload: Any) -> List[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# 真实 MCP 返回结构的规范化（2026-10-24 真连验证后新增）
+#
+# 麦当劳 MCP 各工具的真实返回结构与内部约定不同，这里逐工具转换成出题引擎
+# 认识的规范化记录（字段名与 demo/sample_data.json 保持一致）：
+#   * list-nutrition-foods：``data`` 是一段 ``[N]{字段表}:`` 文本，需逐行解析；
+#   * query-meals：``data.meals`` 是「餐品编码 → 详情」的字典，且必须带门店参数；
+#   * campaign-calendar：``data.dailyList`` 按天列出活动，需按 activityCode 聚合起止；
+#   * mall-points-products：字段名是 spuName / point；
+#   * now-time-info：``data`` 是单个对象。
+# 优惠券（available-coupons）只返回券名与状态、没有门槛/面额，无法支撑折扣题型，
+# 由上层按内置示例降级并在题面如实标注「（示例数据）」——宁可降级，不编数字。
+# ---------------------------------------------------------------------------
+
+
+def _parse_nutrition_text(text: str) -> List[Dict[str, Any]]:
+    """解析 ``list-nutrition-foods`` 的文本格式。
+
+    服务器返回形如::
+
+        [160]{productName,nutritionDescription,energyKj,energyKcal,protein,fat,carbohydrate,sodium,calcium}:
+          猪柳麦满分,null,1288,308,16,16,24,781,213
+          ...
+
+    第一行是 ``[条数]{字段表}:``，之后每行一条逗号分隔记录。
+    输出规范化记录 ``name / energy_kcal / protein_g``（该接口不提供净含量）。
+    """
+    records: List[Dict[str, Any]] = []
+    seen: set = set()
+    header: List[str] = []
+    for raw_line in str(text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if not header:
+            if line.startswith("[") and "{" in line and "}" in line:
+                header = [name.strip() for name in line[line.index("{") + 1 : line.index("}")].split(",")]
+            continue
+        parts = line.split(",")
+        if len(parts) < len(header):
+            continue
+        if len(parts) > len(header):
+            # 描述字段里可能出现逗号：按「尾部数值字段个数」把中段并回描述
+            tail_len = len(header) - 2
+            parts = parts[:1] + [",".join(parts[1 : len(parts) - tail_len])] + parts[len(parts) - tail_len :]
+        row = dict(zip(header, parts))
+        name = str(row.get("productName") or row.get("name") or "").strip()
+        if not name or name in seen:
+            continue
+        try:
+            kcal = Decimal(str(row.get("energyKcal") or row.get("energy_kcal") or ""))
+        except (InvalidOperation, ValueError):
+            continue
+        if kcal <= 0:
+            continue  # 0 千卡的条目（如无糖可乐）会出退化题，跳过
+        seen.add(name)
+        record: Dict[str, Any] = {"name": name, "energy_kcal": str(kcal)}
+        protein = row.get("protein")
+        if protein not in (None, "", "null"):
+            record["protein_g"] = protein
+        records.append(record)
+    return records
+
+
+def _shape_tool_payload(tool_name: str, payload: Any) -> List[Dict[str, Any]]:
+    """按工具名把真实返回结构转换成规范化记录列表。"""
+    data = payload.get("data") if isinstance(payload, dict) else payload
+
+    if tool_name == "list-nutrition-foods":
+        if isinstance(data, str):
+            return _parse_nutrition_text(data)
+        return as_records(data)
+
+    if tool_name == "query-meals":
+        # data.meals 是「餐品编码 → 详情」的字典；只有当前价（或原价）的条目才可用
+        meals = data.get("meals") if isinstance(data, dict) else None
+        records: List[Dict[str, Any]] = []
+        if isinstance(meals, dict):
+            for code, item in meals.items():
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name") or "").strip()
+                if not name:
+                    continue
+                record = {"name": name, "meal_code": str(code)}
+                price = item.get("currentPrice", item.get("originalPrice"))
+                if price not in (None, ""):
+                    record["price"] = price
+                records.append(record)
+        return records
+
+    if tool_name == "campaign-calendar":
+        # dailyList 按天列活动；同一 activityCode 的首末出现日即为活动起止
+        # （日历窗口约当月，跨月活动的起始日以窗口内第一天为准）。
+        daily = data.get("dailyList") if isinstance(data, dict) else None
+        ranges: Dict[str, Dict[str, Any]] = {}
+        if isinstance(daily, list):
+            for day in daily:
+                if not isinstance(day, dict):
+                    continue
+                date_text = str(day.get("date") or "").strip()
+                if not date_text:
+                    continue
+                for event in day.get("events") or []:
+                    if not isinstance(event, dict):
+                        continue
+                    code = str(event.get("activityCode") or "").strip()
+                    if not code:
+                        continue
+                    title = str(
+                        (event.get("articleDto") or {}).get("title") or event.get("activityTitle") or ""
+                    ).strip()
+                    entry = ranges.setdefault(code, {"name": "", "dates": set()})
+                    if title and not entry["name"]:
+                        entry["name"] = title
+                    entry["dates"].add(date_text)
+        records = []
+        for code, entry in ranges.items():
+            dates = sorted(entry["dates"])
+            records.append(
+                {
+                    "campaign_name": entry["name"] or f"活动 {code}",
+                    "start_time": dates[0],
+                    "end_time": dates[-1],
+                }
+            )
+        return records
+
+    if tool_name == "mall-points-products":
+        items = data if isinstance(data, list) else []
+        records = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("spuName") or item.get("productName") or item.get("name") or "").strip()
+            points = item.get("point", item.get("points"))
+            if not name or points in (None, ""):
+                continue
+            record = {"name": name, "points": points}
+            cat = item.get("catName")
+            if cat:
+                record["cat_name"] = str(cat)
+            records.append(record)
+        return records
+
+    if tool_name == "now-time-info":
+        return [data] if isinstance(data, dict) else []
+
+    return as_records(payload)
+
+
+# ---------------------------------------------------------------------------
 # 三级降级核心
 # ---------------------------------------------------------------------------
 
@@ -182,9 +348,12 @@ def as_records(payload: Any) -> List[Dict[str, Any]]:
 def _mcp_records(tool_name: str, arguments: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """调用 MCP 工具并返回记录列表；任何异常都向上抛出。"""
     client = get_client()
+    if tool_name == "query-meals":
+        # 真实接口必须带门店编码（storeCode + orderType + beType），否则 400 缺少参数
+        arguments = {"storeCode": current_store_code(), "orderType": 1, "beType": 1}
     result = client.call_tool(tool_name, arguments or {})
     payload = McpClient.extract_payload(result)
-    return as_records(payload)
+    return _shape_tool_payload(tool_name, payload)
 
 
 def _from_cache(name: str, ttl: int = CACHE_TTL_SECONDS) -> Optional[Dict[str, Any]]:
@@ -323,28 +492,75 @@ def get_now() -> Dict[str, Any]:
     return entry
 
 
+def _meal_code_map() -> Dict[str, str]:
+    """从菜单缓存里建「餐品名 → 商品编码」映射。
+
+    ``calculate-price`` 只认商品编码（``productCode``），不认餐品名；
+    编码在 ``query-meals`` 的返回里（``data.meals`` 的键），已随菜单一起缓存。
+    """
+    cached = _read_json(_cache_path("meals"))
+    mapping: Dict[str, str] = {}
+    if cached:
+        for record in cached.get("data") or []:
+            if isinstance(record, dict):
+                name = str(record.get("name") or "").strip()
+                code = str(record.get("meal_code") or "").strip()
+                if name and code and name not in mapping:
+                    mapping[name] = code
+    return mapping
+
+
 def calc_price(items: List[Dict[str, Any]], store_code: Optional[str] = None) -> Dict[str, Any]:
     """调用 ``calculate-price`` 计算一篮子餐品的官方价格。
 
     Args:
-        items: 形如 ``[{"name": "巨无霸", "quantity": 3, "price": 25.5}]`` 的明细。
-        store_code: 门店编码，可选。
+        items: 形如 ``[{"name": "巨无霸", "quantity": 3, "price": 25.5}]`` 的明细；
+            ``name`` 会经菜单缓存映射成商品编码（接口只认编码）。
+        store_code: 门店编码，可选；缺省用 :func:`store_code`。
 
     Returns:
-        ``{"source", "fetched_at", "total": Decimal | None, "currency", "raw"}``；
-        降级时 ``total`` 为 ``None``，由本地算式接管。
+        ``{"source", "fetched_at", "total", "currency", "raw"}``；
+        无法映射编码或接口不可用时 ``total`` 为 ``None``，由本地算式接管。
     """
-    arguments: Dict[str, Any] = {"items": items}
-    if store_code:
-        arguments["storeCode"] = store_code
+    code_map = _meal_code_map()
+    mcp_items: List[Dict[str, Any]] = []
+    for item in items:
+        name = str(item.get("name") or "").strip()
+        code = str(item.get("productCode") or item.get("code") or "").strip() or code_map.get(name, "")
+        if not code:
+            continue
+        try:
+            quantity = int(item.get("quantity", 1))
+        except (TypeError, ValueError):
+            quantity = 1
+        if quantity < 1:
+            continue
+        mcp_items.append({"productCode": code, "quantity": quantity})
+    if not mcp_items:
+        # 没有编码映射（没抓过菜单 / 餐品不在菜单里）——不硬发请求，直接降级
+        return {
+            "source": SOURCE_SAMPLE,
+            "fetched_at": str(sample_payload().get("fetched_at") or ""),
+            "total": None,
+            "currency": "CNY",
+            "raw": [],
+        }
+
+    arguments: Dict[str, Any] = {
+        "items": mcp_items,
+        "storeCode": (store_code or "").strip() or current_store_code(),
+        "orderType": 1,
+        "beType": 1,
+    }
     try:
         records = _mcp_records("calculate-price", arguments)
         total = _extract_total(records)
         if total is not None:
+            # 麦当劳价格接口以「分」为单位（实测：3 × 49.90 元返回 14970），换算回元
             return {
                 "source": SOURCE_MCP,
                 "fetched_at": now_iso(),
-                "total": total,
+                "total": total / Decimal("100"),
                 "currency": "CNY",
                 "raw": records,
             }
