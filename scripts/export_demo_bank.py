@@ -16,9 +16,12 @@
    实现，自检用这批用例逐条比对「JS 抽到的」与「Python 抽到的」是否一致；
 4. 写 ``demo/bank.json``（给自检用，人可读）；
 5. 把同一份数据压缩成一行注入 ``demo/index.html`` 的
-   ``/* @@BANK_START@@ */`` 与 ``/* @@BANK_END@@ */`` 之间。
+   ``/* @@BANK_START@@ */`` 与 ``/* @@BANK_END@@ */`` 之间；
+6. 把 ``demo/egg-engine.js``（随机彩蛋引擎，UMD 单文件、零外部依赖）原样注入
+   ``demo/index.html`` 的 ``<!-- @@EGG_START@@ -->`` 与 ``<!-- @@EGG_END@@ -->``
+   之间（外包一层 ``<script>``，与题库注入各占一段标记、互不干扰）。
 
-自检脚本会比对「注入的内容」与 ``bank.json`` 是否一致，防止有人只改了其中一边。
+自检脚本会比对「注入的内容」与 ``bank.json`` / ``egg-engine.js`` 是否一致，防止有人只改了其中一边。
 
 用法::
 
@@ -47,6 +50,9 @@ HTML_PATH: Path = DEMO_DIR / "index.html"
 
 BANK_START = "/* @@BANK_START@@ */"
 BANK_END = "/* @@BANK_END@@ */"
+EGG_START = "<!-- @@EGG_START@@ -->"
+EGG_END = "<!-- @@EGG_END@@ -->"
+EGG_ENGINE_PATH: Path = DEMO_DIR / "egg-engine.js"
 
 CARE_NOTE: str = problem_gen.CARE_NOTE
 
@@ -236,21 +242,43 @@ def inject(html: str, payload: Dict[str, Any]) -> str:
     return head + middle + tail
 
 
+def inject_egg(html: str) -> str:
+    """把彩蛋引擎（``demo/egg-engine.js``）注入 index.html 的 EGG 标记之间。
+
+    引擎是 UMD 单文件（Node 下 ``module.exports``，浏览器下挂 ``window.MMQJ_EGG``），
+    零外部依赖；注入时外包一层 ``<script>``，与题库注入各占一段标记，互不干扰。
+    引擎文件里不能出现 ``</script>`` 字样——否则会提前闭合标签、把页面搅碎。
+    """
+    if EGG_START not in html or EGG_END not in html:
+        raise SystemExit(f"index.html 缺少 {EGG_START} / {EGG_END} 标记，无法注入彩蛋引擎。")
+    if not EGG_ENGINE_PATH.exists():
+        raise SystemExit(f"缺少 {EGG_ENGINE_PATH.name}，无法注入彩蛋引擎。")
+    engine = EGG_ENGINE_PATH.read_text(encoding="utf-8").strip()
+    if "</script" in engine.lower():
+        raise SystemExit("demo/egg-engine.js 内含有 </script> 字样，不能直接内联进 HTML。")
+    head, rest = html.split(EGG_START, 1)
+    _, tail = rest.split(EGG_END, 1)
+    middle = f"{EGG_START}\n<script>\n{engine}\n</script>\n{EGG_END}"
+    return head + middle + tail
+
+
 def main() -> int:
-    """入口：写 bank.json 并刷新 index.html 的内联题库。"""
+    """入口：写 bank.json 并刷新 index.html 的内联题库与彩蛋引擎。"""
     payload = build_bank()
     DEMO_DIR.mkdir(parents=True, exist_ok=True)
     BANK_PATH.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     html = HTML_PATH.read_text(encoding="utf-8")
-    HTML_PATH.write_text(inject(html, payload), encoding="utf-8")
+    html = inject(html, payload)
+    html = inject_egg(html)
+    HTML_PATH.write_text(html, encoding="utf-8")
     total = sum(len(items) for items in payload["bank"].values())
     chars = sum(len(items) for items in payload["characters"].values())
     print(
         f"题库已生成：{len(payload['bank'])} 条故事线 / {total} 道题 / "
         f"{chars} 名角色 / {len(payload['vectors'])} 条固定用例 → "
-        f"{BANK_PATH.relative_to(PROJECT_ROOT)}，并注入 demo/index.html"
+        f"{BANK_PATH.relative_to(PROJECT_ROOT)}，并注入 demo/index.html（题库 + 彩蛋引擎）"
     )
     return 0
 

@@ -26,5 +26,44 @@
   "stage_count": 9,
   "difficulty_count": 9,
   "scene_variant_note": "场景文本 = 场景修饰 + 该关的地点。修饰语以「的/时/日/前/后」结尾；地点里已含「的」时改用逗号连接，避免出现「清晨的五行山下的路口」这种双重定语。",
-  "transition_note": "品阶只看用时，不看对错次数；用提示最高白银，跳过不计品阶。"
+  "transition_note": "品阶只看用时，不看对错次数；用提示最高白银，跳过不计品阶。",
+  "easter_egg": {
+    "note": "随机彩蛋惊喜功能参数（设计稿见 推送包/彩蛋惊喜功能-移动端落地方案.md，随参赛仓库分发时可移入 docs/）。纯前端运行时逻辑，不进题库；CLI 不读取本段。改参数等于改行为，请先改设计稿。",
+    "enabled_default": true,
+    "daily_hard_cap": 5,
+    "per_run_cap": 2,
+    "global_cooldown_s": 90,
+    "channel_cooldown_s": { "T1": 120, "T2": 0, "T3": 180 },
+    "t3_interval_range_s": [90, 180],
+    "t3_idle_grace_s": 60,
+    "enter_ignore_input_ms": 800,
+    "minimize_auto_close_s": 60,
+    "queue_cap": 3,
+    "no_interact_streak_limit": 3,
+    "seen_window_h": 24,
+    "char_window_h": 72,
+    "freshness_days": 7,
+    "freshness_weight": 0.3,
+    "streak_target": 5,
+    "line_size": 14,
+    "gold_fast_ratio": 0.4,
+    "dash_streak_days": 3,
+    "pool": [
+      { "id": "C_cloud_flip", "type": "C", "weight": 10, "mini": "cloud_flip", "title": "祥云翻牌" },
+      { "id": "C_wukong_quiz", "type": "C", "weight": 10, "mini": "wukong_quiz", "title": "悟空抢答" },
+      { "id": "C_peach_catch", "type": "C", "weight": 8, "mini": "peach_catch", "title": "接仙桃计数" },
+      { "id": "C_badge_match", "type": "C", "weight": 8, "mini": "badge_match", "title": "拼徽记" }
+    ],
+    "task_weights": {
+      "first_clear": 90,
+      "clean_run": 95,
+      "line_complete": 95,
+      "streak5": 80,
+      "gold_fast": 85,
+      "recover": 75,
+      "dash3": 90
+    },
+    "type_weights": { "A": 10, "C": 10, "D": 6 },
+    "source_note": "A/D 类彩蛋的角色与文案在运行时从演示页角色库（BANK.characters）按去重规则抽取，id 形如 A:<角色id> / D:<角色id>；B 类为结算页庆祝叠加层，不占互斥锁、不计频率。"
+  }
 }

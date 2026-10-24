@@ -15,7 +15,10 @@ README 第七节写的是「真实运行结果」，一旦出题模板、CLI 文
 3. **闯关规则**（``docs/SYSTEM_RULES.md`` 第十三节）：解锁链、故事线链、1000 个 seed 的
    随机覆盖、可复现、品阶边界、收集与介绍解锁；
 4. **两端一致**：``bank.vectors`` 里 135 条固定用例，用 ``journey.draw_run`` 重算必须逐条相同；
-5. **红线**：70 条角色介绍 + 50 条场景修饰语不得出现暴力 / 迷信 / 竞品 / 消费引导词。
+5. **红线**：70 条角色介绍 + 50 条场景修饰语不得出现暴力 / 迷信 / 竞品 / 消费引导词；
+6. **随机彩蛋**（``data/run_rules.json`` 的 ``easter_egg`` 段）：必备键齐全且类型正确、
+   pool 条目合法（id 唯一 / type ∈ {A,C,D} / weight 正整数 / C 类带 mini）、文案不过红线词表，
+   且配置必须经导出流入 ``demo/bank.json`` 与 ``demo/index.html``（三处一致，防止只改一边）。
 
 比对口径（重要）
 ----------------
@@ -51,9 +54,25 @@ CLI: Path = PROJECT_ROOT / "scripts" / "cli.py"
 DATA_CLI: Path = PROJECT_ROOT / "scripts" / "data_source.py"
 DEMO_INDEX: Path = PROJECT_ROOT / "demo" / "index.html"
 DEMO_BANK: Path = PROJECT_ROOT / "demo" / "bank.json"
+EGG_ENGINE: Path = PROJECT_ROOT / "demo" / "egg-engine.js"
+RUN_RULES: Path = PROJECT_ROOT / "data" / "run_rules.json"
 
 BANK_START: str = "/* @@BANK_START@@ */"
 BANK_END: str = "/* @@BANK_END@@ */"
+EGG_START: str = "<!-- @@EGG_START@@ -->"
+EGG_END: str = "<!-- @@EGG_END@@ -->"
+
+EGG_MINI_KINDS = {"cloud_flip", "wukong_quiz", "peach_catch", "badge_match"}
+"""C 类小游戏的四种合法取值（与 egg-engine.js 的 buildMini 一一对应）。"""
+
+EGG_POOL_TYPES = {"A", "C", "D"}
+"""彩蛋类型：A 角色探头 / C 迷你互动 / D 知识卡（B 为结算庆祝，不进 pool）。"""
+
+EGG_TASK_KEYS = {
+    "first_clear", "clean_run", "line_complete",
+    "streak5", "gold_fast", "recover", "dash3",
+}
+"""T2 任务钩子的七个任务（与 egg-engine.js 的 onSettle/onAnswer 对应）。"""
 
 DATETIME_RE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}:\d{2}(?:\+08:00)?)?")
 ECHO_RE = re.compile(r"^\s*你的答案 > \S{1,8}$")
@@ -821,6 +840,170 @@ def check_demo_bank() -> Tuple[List[str], int]:
     return problems, total
 
 
+def _is_positive_int(value: Any) -> bool:
+    """正整数判断（布尔不算数）。"""
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _is_positive_number(value: Any) -> bool:
+    """正数判断（整数或小数，布尔不算数）。"""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+
+
+def check_easter_egg() -> List[str]:
+    """校验随机彩蛋：``run_rules.json`` 配置 → ``bank.json`` → ``index.html`` 三处一致。
+
+    检查项（任何一项不满足都算 FAIL）：
+
+    * ``easter_egg`` 段必备键齐全、类型正确（开关/上限/冷却/队列/去重窗口/任务权重等）；
+    * ``pool`` 每条：``id`` 全局唯一、``type`` ∈ {A,C,D}、``weight`` 正整数、
+      C 类必须带合法的 ``mini``；
+    * ``pool`` 内所有字符串字段不过红线词表（``RED_LINE_RE``）；
+    * ``demo/bank.json`` 里的 ``rules.easter_egg`` 与 ``data/run_rules.json`` 一致
+      （配置经导出流入演示页，防止只改一边）；
+    * ``demo/egg-engine.js`` 存在且不含 ``</script>``；``demo/index.html`` 含 EGG 标记，
+      且标记之间注入的引擎与磁盘上的引擎文件一致。
+
+    Returns:
+        问题描述列表；空列表表示通过。
+    """
+    problems: List[str] = []
+    if not RUN_RULES.exists():
+        return [f"缺少 {RUN_RULES.name}（彩蛋配置的唯一真相源）"]
+    try:
+        rules = json.loads(RUN_RULES.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"data/run_rules.json 不是合法 JSON —— {exc}"]
+    egg = rules.get("easter_egg")
+    if not isinstance(egg, dict):
+        return ["data/run_rules.json 缺少 easter_egg 配置段（随机彩蛋参数）"]
+
+    if not isinstance(egg.get("enabled_default"), bool):
+        problems.append(f"easter_egg.enabled_default 应为布尔值（当前 {egg.get('enabled_default')!r}）")
+    for key in ("daily_hard_cap", "per_run_cap", "global_cooldown_s"):
+        if not _is_positive_int(egg.get(key)):
+            problems.append(f"easter_egg.{key} 应为正整数（当前 {egg.get(key)!r}）")
+    cooldown = egg.get("channel_cooldown_s")
+    if not isinstance(cooldown, dict) or not all(k in cooldown for k in ("T1", "T2", "T3")):
+        problems.append("easter_egg.channel_cooldown_s 应含 T1/T2/T3 三个频道的冷却秒数")
+    else:
+        for channel, seconds in cooldown.items():
+            if not (isinstance(seconds, int) and not isinstance(seconds, bool) and seconds >= 0):
+                problems.append(
+                    f"easter_egg.channel_cooldown_s.{channel} 应为非负整数"
+                    f"（0 表示该频道不冷却，当前 {seconds!r}）"
+                )
+    interval = egg.get("t3_interval_range_s")
+    if not (
+        isinstance(interval, list)
+        and len(interval) == 2
+        and all(_is_positive_number(v) for v in interval)
+        and interval[0] <= interval[1]
+    ):
+        problems.append(f"easter_egg.t3_interval_range_s 应为两元素升序区间（当前 {interval!r}）")
+    for key in (
+        "enter_ignore_input_ms", "minimize_auto_close_s", "queue_cap",
+        "no_interact_streak_limit", "seen_window_h", "char_window_h",
+        "freshness_days", "streak_target", "line_size",
+        "gold_fast_ratio", "dash_streak_days",
+    ):
+        if not _is_positive_number(egg.get(key)):
+            problems.append(f"easter_egg.{key} 应为正数（当前 {egg.get(key)!r}）")
+
+    pool = egg.get("pool")
+    if not (isinstance(pool, list) and pool):
+        problems.append("easter_egg.pool 应为非空列表")
+    else:
+        seen_ids: set = set()
+        for index, item in enumerate(pool):
+            if not isinstance(item, dict):
+                problems.append(f"pool[{index}] 不是对象")
+                continue
+            egg_id = item.get("id")
+            if not (isinstance(egg_id, str) and egg_id):
+                problems.append(f"pool[{index}] 缺少字符串 id")
+            elif egg_id in seen_ids:
+                problems.append(f"pool id 重复：{egg_id}")
+            if egg_id:
+                seen_ids.add(egg_id)
+            if item.get("type") not in EGG_POOL_TYPES:
+                problems.append(
+                    f"pool[{index}]（{egg_id}）type 应为 {sorted(EGG_POOL_TYPES)} 之一（当前 {item.get('type')!r}）"
+                )
+            if not _is_positive_int(item.get("weight")):
+                problems.append(f"pool[{index}]（{egg_id}）weight 应为正整数（当前 {item.get('weight')!r}）")
+            if item.get("type") == "C" and item.get("mini") not in EGG_MINI_KINDS:
+                problems.append(
+                    f"pool[{index}]（{egg_id}）C 类必须带合法 mini"
+                    f"（{sorted(EGG_MINI_KINDS)} 之一，当前 {item.get('mini')!r}）"
+                )
+            for field, text in item.items():
+                if not isinstance(text, str):
+                    continue
+                hit = RED_LINE_RE.findall(text)
+                if hit:
+                    problems.append(
+                        f"pool[{index}]（{egg_id}）的 {field} 命中红线词：{'、'.join(sorted(set(hit)))}"
+                    )
+
+    task_weights = egg.get("task_weights")
+    if not isinstance(task_weights, dict) or set(task_weights) != EGG_TASK_KEYS:
+        problems.append(f"easter_egg.task_weights 应恰好含 7 个任务：{sorted(EGG_TASK_KEYS)}")
+    type_weights = egg.get("type_weights")
+    if not isinstance(type_weights, dict) or not EGG_POOL_TYPES <= set(type_weights):
+        problems.append("easter_egg.type_weights 应含 A/C/D 三类权重")
+
+    # 配置必须经导出流入演示页：bank.json 的 rules.easter_egg 与 run_rules.json 逐字节一致
+    if not DEMO_BANK.exists():
+        problems.append("缺少 demo/bank.json，请先运行 scripts/export_demo_bank.py")
+    else:
+        try:
+            bank = json.loads(DEMO_BANK.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            problems.append(f"demo/bank.json 不是合法 JSON —— {exc}")
+        else:
+            inline_egg = (bank.get("rules") or {}).get("easter_egg")
+            if inline_egg != egg:
+                problems.append(
+                    "demo/bank.json 的 rules.easter_egg 与 data/run_rules.json 不一致"
+                    "（配置没流进演示页，请重跑 scripts/export_demo_bank.py）"
+                )
+
+    # 引擎文件与注入标记
+    engine_text = ""
+    if not EGG_ENGINE.exists():
+        problems.append("缺少 demo/egg-engine.js（彩蛋引擎）")
+    else:
+        engine_text = EGG_ENGINE.read_text(encoding="utf-8")
+        if "</script" in engine_text.lower():
+            problems.append("demo/egg-engine.js 含有 </script> 字样，不能安全内联进演示页")
+
+    html = DEMO_INDEX.read_text(encoding="utf-8")
+    if EGG_START not in html or EGG_END not in html:
+        problems.append(f"demo/index.html 缺少 {EGG_START} / {EGG_END} 标记")
+    else:
+        middle = html.split(EGG_START, 1)[1].split(EGG_END, 1)[0]
+        # 刘海屏 safe-area：齿轮 / beacon / 卡片的 bottom 必须吃进 env(safe-area-inset-bottom)，
+        # 防回归——改 demo/egg-engine.js 的 CSS 后要重跑导出脚本才会生效。
+        if "env(safe-area-inset-bottom)" not in middle:
+            problems.append(
+                "注入的彩蛋引擎 CSS 未适配 safe-area（应含 env(safe-area-inset-bottom)；"
+                "改 demo/egg-engine.js 后需重跑 scripts/export_demo_bank.py）"
+            )
+        if engine_text:
+            inner = middle.strip()
+            if inner.startswith("<script>"):
+                inner = inner[len("<script>"):]
+            if inner.endswith("</script>"):
+                inner = inner[: -len("</script>")]
+            if inner.strip() != engine_text.strip():
+                problems.append(
+                    "demo/index.html 注入的彩蛋引擎与 demo/egg-engine.js 不一致"
+                    "（请重跑 scripts/export_demo_bank.py）"
+                )
+    return problems
+
+
 _CN_COUNT = {"两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
 _SAMPLE_COUNT_RE = re.compile(r"这 (\d+) 样")
 _SAMPLE_COUNT_2_RE = re.compile(r"(\d+) 份一共多少")
@@ -982,6 +1165,12 @@ def main() -> int:
             {"line_no": 0, "expect": "闯关规则（解锁链 / 随机性 / 可复现 / 品阶 / 收集）", "actual": issue}
         )
 
+    egg_issues = check_easter_egg()
+    for issue in egg_issues:
+        problems.append(
+            {"line_no": 0, "expect": "彩蛋配置与引擎注入自洽（run_rules ↔ bank.json ↔ index.html）", "actual": issue}
+        )
+
     if not problems:
         total_lines = sum(len(block.splitlines()) for block in blocks)
         print(
@@ -992,6 +1181,7 @@ def main() -> int:
             f"demo 题库 {bank_total} 题与 bank.json / 重导出结果一致；"
             f"README 规模数字一致（{story_levels} 个关卡位，{distinct} 条不同题面）；"
             f"角色 {char_total} 名（介绍 {char_short}~{char_long} 字）/ 场景修饰语 {scene_total} 条；"
+            f"彩蛋配置 / pool / 引擎注入一致；"
             f"闯关规则断言全部通过"
         )
         return 0
