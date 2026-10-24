@@ -503,7 +503,7 @@ def grade_tier(
         elapsed_ms: run 用时（已按单题上限截断）。
         budget: 基准用时（见 :func:`budget_ms`）。
         used_hint: 是否用过提示。
-        used_skip: 是否跳过过某一题。
+        used_skip: 是否跳过某一题（跳过则这一场不计品阶）。
         retry_count: 答错的总次数。
 
     Returns:
