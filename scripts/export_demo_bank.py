@@ -40,7 +40,7 @@ import sys
 import tempfile
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 if __package__ in (None, ""):  # pragma: no cover - 脚本运行路径
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -86,10 +86,26 @@ BG_TOKEN_PREFIX: Dict[str, str] = {name: name.removeprefix("bg-") for name in BG
 既不会撞全局变量，素材缺失时又能优雅回落到原来的深色文字。
 """
 
-GLOBAL_CSS_VARS: frozenset = frozenset(
-    {"--paper", "--ink", "--seal", "--muted", "--card", "--mcd-yellow", "--line"}
-)
-"""全局主题变量名。背景令牌若与它们同名 → 直接把全站配色打穿，必须在写入前拦下。"""
+GLOBAL_CSS_VARS: Dict[str, str] = {
+    "--paper": "#FFF9EF",
+    "--ink": "#3B2A20",
+    "--seal": "#DA291C",
+    "--muted": "#8A7563",
+    "--card": "#FFFFFF",
+    "--mcd-yellow": "#FFC72C",
+    "--line": "rgba(59, 42, 32, 0.14)",
+}
+"""全局主题变量的**名称 → 期望取值**（**单一真相源**）。
+
+两处用同一份，避免以后漂移：
+
+* ``scripts/selfcheck.py`` 直接 import 本常量（自检要钉死「背景令牌没覆盖它们」）；
+* 本模块的写入点闸门 + 注入后断言（见 :func:`inject_backgrounds`）。
+
+**为什么必须挡**：背景令牌最终写进 ``:root``。若某个属性名与这里重名，
+``--ink`` 就会被刷成 ``#ffffff`` → **全站正文变白字**，落在浅色面板上完全看不见。
+所以同名即中止——宁可导不出文件，也不能产出一个「看着正常、其实文字全白」的页面。
+"""
 
 BG_TOKENS: Dict[str, Dict[str, str]] = {
     "bg-hero": {
@@ -385,6 +401,41 @@ def _bg_data_uri(path: Path) -> str:
     return f"data:image/jpeg;base64,{payload}"
 
 
+def _global_var_final_values(html: str) -> Dict[str, str]:
+    """取每个全局主题变量在整份 HTML 里的**最终生效取值**。
+
+    CSS 同名自定义属性按「后写的赢」，所以取**最后一次**出现的值。
+    背景令牌段写在主题 ``:root`` **之后**——只要它覆盖了 ``--ink``，
+    这里就能看到被改掉的取值。
+    """
+    values: Dict[str, str] = {}
+    for var in GLOBAL_CSS_VARS:
+        found = re.findall(rf"^\s*{re.escape(var)}\s*:\s*([^;]+);", html, re.M)
+        if found:
+            values[var] = found[-1].strip()
+    return values
+
+
+def _assert_global_vars_intact(html: str) -> None:
+    """断言全局主题变量在注入背景位图后**取值没变**（注入后最后一道闸门）。
+
+    这是最外层、也最不可能被绕过的防线：不管属性名是怎么算出来的、
+    从哪条路径写进来的，只要最终 ``--ink`` 之类不再是期望值，就立刻中止。
+    """
+    actual = _global_var_final_values(html)
+    for var, expected in GLOBAL_CSS_VARS.items():
+        if var not in actual:
+            raise SystemExit(
+                f"注入背景位图后找不到全局变量 {var}（期望 {expected}），"
+                "页面会失去主题配色，已中止，未写入任何文件。"
+            )
+        if actual[var].lower() != expected.lower():
+            raise SystemExit(
+                f"注入背景位图后全局 {var} 的最终取值是 {actual[var]}，应为 {expected}"
+                "（背景令牌把它打穿了 → 全站正文会变白字）。已中止，未写入任何文件。"
+            )
+
+
 def inject_backgrounds(html: str) -> str:
     """把 ``demo/assets/`` 下的背景位图内联进 index.html 的 BG 标记之间。
 
@@ -397,22 +448,45 @@ def inject_backgrounds(html: str) -> str:
     页面里统一用 ``var(--bg-hero, none)`` / ``var(--hero-ink, var(--ink))`` 这种带兜底值的
     写法消费，所以**素材缺失时优雅降级**：变量不存在 → 兜底值生效 → 页面回落到纯 CSS 渐变，
     不报错、不崩。
+
+    **安全**：这里有**两道**闸门，任何一道不过就不产出文件：
+
+    1. **写入点闸门**：先把「本次要写入的全部属性名」收成一张表，与
+       :data:`GLOBAL_CSS_VARS` 的键求交集——有交集就中止并点名是哪个属性名。
+       写入用的就是这张表，所以**即使调用方绕过** :func:`bg_token_name`
+       **自己拼属性名，也一样会被拦下**（不能只靠 helper 里的检查）。
+    2. **注入后断言**：返回前再核对一遍全局主题变量的最终取值（见
+       :func:`_assert_global_vars_intact`）——最后兜住「不知道从哪条路写进来的」情况。
     """
     if BG_START not in html or BG_END not in html:
         raise SystemExit(f"index.html 缺少 {BG_START} / {BG_END} 标记，无法注入背景位图。")
-    head, rest = html.split(BG_START, 1)
-    _, tail = rest.split(BG_END, 1)
 
-    lines: List[str] = []
+    # 先把「这次要写入的全部属性名 + 取值」收成一张表。
+    # 闸门检查与最终写法用的是**同一张表**，所以属性名无论怎么算出来都会被检查到。
+    props: List[Tuple[str, str]] = []
     for name in BG_ASSETS:
         path = BG_ASSETS_DIR / f"{name}.jpg"
         if not path.exists():
             continue  # 缺哪张就少写哪个变量 → 该处 var(--bg-*, none) 兜底
         # 变量名直接用素材名：bg-hero → --bg-hero（与页面里的 var(--bg-hero, none) 对齐）
-        lines.append(f'    --{name}: url("{_bg_data_uri(path)}");')
+        props.append((f"--{name}", f'url("{_bg_data_uri(path)}")'))
         for key, value in BG_TOKENS.get(name, {}).items():
-            lines.append(f"    {bg_token_name(name, key)}: {value};")
+            props.append((bg_token_name(name, key), value))
 
+    # 【闸门 1：写入点】属性名与全局主题变量同名 → 立刻中止，绝不产出文件
+    clash = sorted({prop for prop, _ in props if prop in GLOBAL_CSS_VARS})
+    if clash:
+        raise SystemExit(
+            "背景位图令牌与全局主题变量同名（"
+            + "、".join(clash)
+            + "）：会把全站配色打穿（--ink 被刷成白字 → 全站正文看不见）。"
+            "已中止，未写入任何文件。"
+        )
+
+    head, rest = html.split(BG_START, 1)
+    _, tail = rest.split(BG_END, 1)
+
+    lines = [f"    {prop}: {value};" for prop, value in props]
     if not lines:
         middle = (
             f"{BG_START}\n"
@@ -431,7 +505,11 @@ def inject_backgrounds(html: str) -> str:
             + "\n  }\n"
             f"{BG_END}"
         )
-    return head + middle + tail
+    result = head + middle + tail
+
+    # 【闸门 2：注入后】全局主题变量的最终取值必须还是期望值
+    _assert_global_vars_intact(result)
+    return result
 
 
 def main() -> int:

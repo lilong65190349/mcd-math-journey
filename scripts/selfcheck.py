@@ -103,15 +103,21 @@ BG_TOKEN_NAMES: List[str] = [
 裸键 ``ink`` / ``card`` 会覆盖全局 ``--ink`` / ``--card`` → 全站正文变白字、页面作废。
 """
 
-GLOBAL_CSS_VARS: Dict[str, str] = {
-    "--paper": "#FFF9EF",
-    "--ink": "#3B2A20",
-    "--seal": "#DA291C",
-    "--muted": "#8A7563",
-    "--card": "#FFFFFF",
-    "--mcd-yellow": "#FFC72C",
-}
-"""全局主题变量的期望取值（背景令牌不许碰它们）。"""
+def global_css_vars() -> Dict[str, str]:
+    """全局主题变量的期望取值（**单一真相源 = ``export_demo_bank.GLOBAL_CSS_VARS``**）。
+
+    导出脚本与自检脚本必须认同一组变量名与期望值——两边各写一份，
+    迟早会漂移（比如导出脚本挡了 ``--line``、自检却没挡）。
+    所以这里**直接 import 导出脚本的常量**，不再重复抄一遍。
+
+    Returns:
+        ``{变量名: 期望取值}``。
+    """
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import export_demo_bank  # noqa: E402
+
+    return dict(export_demo_bank.GLOBAL_CSS_VARS)
+
 
 BG_CONSUMERS: Dict[str, str] = {
     "--bg-pattern": "body（全站底纹）",
@@ -1083,11 +1089,13 @@ def check_background_assets() -> List[str]:
         problems.append(f"只有 {inlined}/{len(BG_ASSETS)} 张背景位图被内联（应全部内联）")
 
     # ② 背景令牌不得覆盖全局主题变量
+    #    （变量名与期望值取自 export_demo_bank.GLOBAL_CSS_VARS —— 单一真相源）
+    globals_expected = global_css_vars()
     written = set(re.findall(r"^\s*(--[A-Za-z0-9-]+)\s*:", block, re.M))
-    for var in GLOBAL_CSS_VARS:
+    for var in globals_expected:
         if var in written:
             problems.append(f"背景令牌覆盖了全局变量 {var}（会把全站配色打穿）")
-    for var, expected in (("--ink", "#3B2A20"), ("--card", "#FFFFFF")):
+    for var, expected in globals_expected.items():
         values = re.findall(rf"^\s*{re.escape(var)}\s*:\s*([^;]+);", html, re.M)
         if not values:
             problems.append(f"demo/index.html 里找不到全局变量 {var}")

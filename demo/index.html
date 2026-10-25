@@ -871,6 +871,11 @@
     background-repeat: no-repeat, no-repeat;
   }
 
+  /* 图鉴标题右侧的统计小字（已收集 N/70 · 介绍解锁 N · 品阶 N · 青铜 N）原来走
+     --muted(#8A7563)，在浅奶油底上只有 3.91:1，低于 AA 的 4.5:1。
+     路线图面板已经补过同样的修正，这里补齐。 */
+  #codexPanel .panel-head .tip { color: var(--ink); }
+
   #resultPanel {
     /* 结算页是 5 张里唯一偏暗的一张（实测平均亮度 117.7）→ 面板级文字必须走浅色。
        位图缺失时 none 兜底 → 回落渐变 + 深色字 var(--ink)。
