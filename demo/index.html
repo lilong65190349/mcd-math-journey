@@ -1176,6 +1176,9 @@
   var STAGE_KEY_PREFIX = "mmqj.stage.v2.";
   var CHAR_KEY_PREFIX = "mmqj.chars.v2.";
   var STORY_KEY = "mmqj.story.v1";
+  /* 进行中关卡的断点存档：刷新、切后台被回收、误触刷新后都能接着答，
+     而不是回到关卡列表从头再来。只存随机种子和进度，题目由种子重建。 */
+  var RUN_KEY = "mmqj.run.v1";
 
   var currentStory = "";
   var codexStory = "";
@@ -1433,6 +1436,80 @@
 
   function saveChars(story) {
     writeJSON(CHAR_KEY_PREFIX + story, charBucket(story));
+  }
+
+  /* ---- 进行中一关的断点存档 ----------------------------------------
+   * 只落盘「种子 + 进度」，不存题目正文：drawRun(story, stage, seed) 与
+   * problemAt(story, stage, difficulty) 都是确定性的，凭种子即可还原同一
+   * 套题，存档体积不到 200 字节。
+   * ------------------------------------------------------------------ */
+  /* 当前这道题已经过去的时间（口径与 submit/skip 里完全一致，含单题上限）。
+   * run.elapsed 只累计「已结束的题」，正在答的这半题如果不算进去，
+   * 刷新一次就把这半题的时间白送了——那就能靠反复刷新压低 ratio 刷品阶。 */
+  function pendingMs() {
+    if (!run || !run.questionStart) { return 0; }
+    return Math.min(nowMs() - run.questionStart, capSeconds() * 1000);
+  }
+
+  function saveRunSnapshot() {
+    if (!run || !run.plan) { return; }
+    /* 已经答到最后一题之后（结算已发生 / 即将发生）就没有断点可存了：
+       否则结算完关页面，pagehide 又把一条「打完了的场次」写回去，
+       下次进页面会先闪一下答题页再被判无效清掉。 */
+    if (Number(run.index) >= run.problems.length) { return; }
+    writeJSON(RUN_KEY, {
+      story: run.story,
+      stage: run.stage,
+      seed: String(run.plan.seed),
+      index: run.index,
+      elapsed: run.elapsed + pendingMs(),
+      usedHint: Boolean(run.usedHint),
+      usedSkip: Boolean(run.usedSkip),
+      retry: run.retry,
+      savedAt: new Date().toISOString()
+    });
+  }
+
+  function readRunSnapshot() {
+    var data = readJSON(RUN_KEY);
+    if (!data || !data.story || !data.stage || !data.seed) { return null; }
+    /* 故事线已不在注册表里（换过题库 / 存档是别的版本写的）→ 这条存档再也接不回来，
+       直接清掉，别让它一直躺在 localStorage 里分类似「历史垃圾」。
+       注意：只清「线不存在」；「线存在但不是当前这条线」必须留着（用户切回去还要接）。 */
+    if (!storyMeta(data.story)) { clearRunSnapshot(); return null; }
+    return data;
+  }
+
+  function clearRunSnapshot() {
+    try { window.localStorage.removeItem(RUN_KEY); } catch (err) { /* 隐私模式忽略 */ }
+  }
+
+  /* 用存档重建 run；失败返回 null（存档过期/题库改动/越界都走这里） */
+  function runFromSnapshot(snap) {
+    if (!snap) { return null; }
+    if (!stageEntry(snap.story, snap.stage)) { return null; }
+    var plan = drawRun(snap.story, snap.stage, snap.seed);
+    var problems = [];
+    plan.difficulties.forEach(function (difficulty) {
+      var problem = problemAt(snap.story, snap.stage, difficulty);
+      if (problem) { problems.push(problem); }
+    });
+    if (!problems.length) { return null; }
+    var index = Number(snap.index);
+    if (!isFinite(index) || index < 0 || index >= problems.length) { return null; }
+    return {
+      story: snap.story,
+      stage: Number(snap.stage),
+      plan: plan,
+      problems: problems,
+      index: index,
+      elapsed: Number(snap.elapsed) || 0,
+      usedHint: Boolean(snap.usedHint),
+      usedSkip: Boolean(snap.usedSkip),
+      retry: Number(snap.retry) || 0,
+      questionStart: 0,
+      answered: false
+    };
   }
 
   function stageRecord(story, stage) {
@@ -1859,9 +1936,21 @@
     chips.appendChild(el("span", "chip", "单题上限 " + capSeconds() + " 秒"));
     card.appendChild(chips);
 
-    var start = el("button", null, "开始答题");
-    start.addEventListener("click", startRun);
-    card.appendChild(start);
+    /* 有未打完的存档时，优先给「继续」，另留「从头再来」 */
+    var snap = readRunSnapshot();
+    var resumable = Boolean(snap && snap.story === run.story && Number(snap.stage) === run.stage);
+    if (resumable) {
+      var resumeBtn = el("button", null, "继续上次（第 " + (Number(snap.index) + 1) + " 题）");
+      resumeBtn.addEventListener("click", function () { tryResumeRun(); });
+      card.appendChild(resumeBtn);
+      var restartBtn = el("button", "ghost", "从头再来");
+      restartBtn.addEventListener("click", function () { startRun(); });
+      card.appendChild(restartBtn);
+    } else {
+      var start = el("button", null, "开始答题");
+      start.addEventListener("click", function () { startRun(); });
+      card.appendChild(start);
+    }
 
     card.appendChild(el("p", "src-line",
       "题目里的数字都来自出题时算好的精确结果，接入麦当劳 MCP 后会再调用 calculate-price 复核一次。"));
@@ -1875,15 +1964,35 @@
     }
   }
 
-  function startRun() {
+  function startRun(resume) {
     if (!run) { return; }
-    run.index = 0;
-    run.elapsed = 0;
-    run.usedHint = false;
-    run.usedSkip = false;
-    run.retry = 0;
+    if (!resume) {
+      run.index = 0;
+      run.elapsed = 0;
+      run.usedHint = false;
+      run.usedSkip = false;
+      run.retry = 0;
+    }
     hide(document.getElementById("stagePanel"));
     renderQuestion();
+    saveRunSnapshot();
+  }
+
+  /* 刷新后自动接着答：只在故事线一致、关卡仍解锁、题目能重建时恢复 */
+  function tryResumeRun(silent) {
+    var snap = readRunSnapshot();
+    if (!snap) { return false; }
+    if (snap.story !== currentStory) { return false; }
+    if (!isStageUnlocked(snap.story, snap.stage)) { clearRunSnapshot(); return false; }
+    var restored = runFromSnapshot(snap);
+    if (!restored) { clearRunSnapshot(); return false; }
+    run = restored;
+    renderStagePanel();
+    startRun(true);
+    if (!silent) {
+      toast("已接回上次进度：第 " + (run.index + 1) + "/" + run.problems.length + " 题");
+    }
+    return true;
   }
 
   /* ------------------------------------------------------------------
@@ -1977,6 +2086,7 @@
       hintBox.appendChild(el("p", null, "提示 " + (hintIndex + 1) + " / 3　" + problem.hints[hintIndex]));
       show(hintBox);
       hintIndex += 1;
+      saveRunSnapshot();
       hintBtn.textContent = "求提示（" + hintIndex + "/3）";
       if (hintIndex >= problem.hints.length) {
         hintBtn.disabled = true;
@@ -2008,6 +2118,8 @@
 
     function finishQuestion() {
       if (ticker) { window.clearInterval(ticker); ticker = null; }
+      /* 本题耗时已经并进 run.elapsed，归零后 pendingMs() 不会再加一遍 */
+      run.questionStart = 0;
       run.answered = true;
       input.disabled = true;
       submit.disabled = true;
@@ -2017,9 +2129,12 @@
       next.id = "nextButton";
       next.addEventListener("click", function () {
         run.index += 1;
+        saveRunSnapshot();
         if (run.index >= run.problems.length) { settleRun(); } else { renderQuestion(); }
       });
       feedback.appendChild(next);
+      /* 本题已作答（对/跳过）→ 立刻落盘，避免答完没点「下一题」就刷新而丢进度 */
+      saveRunSnapshot();
     }
 
     function submitAnswer() {
@@ -2048,6 +2163,9 @@
       }
       tries += 1;
       run.retry += 1;
+      /* 答错次数直接决定品阶上限（≥3 次封顶白银）与「干净通关」（决定介绍能否解锁），
+         必须立刻落盘：否则刷新一次就能把错题记录洗掉，等于白拿黄金 + 解锁介绍。 */
+      saveRunSnapshot();
       showSteps(false);
       input.value = "";
       input.focus();
@@ -2088,9 +2206,15 @@
     /* 计时从第一题题干渲染完成开始 */
     run.questionStart = nowMs();
     if (ticker) { window.clearInterval(ticker); }
+    var tickCount = 0;
     ticker = window.setInterval(function () {
       var elapsed = Math.min(nowMs() - run.questionStart, capSeconds() * 1000);
       timerChip.textContent = "本题 " + seconds(elapsed) + " 秒（上限 " + capSeconds() + " 秒）";
+      /* 每 5 秒补一次落盘：这只是兜底（页面被强杀、来不及派发 pagehide 时少丢一点）。
+         真正保证「刷新不丢当前题用时」的是 init 里的 pagehide / visibilitychange：
+         只靠这个周期，反复在 5 秒内刷新就能把用时无限抹掉（实测 33.6 秒 → 0.11 秒）。 */
+      tickCount += 1;
+      if (tickCount % 25 === 0) { saveRunSnapshot(); }
     }, 200);
 
     if (typeof input.focus === "function") {
@@ -2103,6 +2227,8 @@
    * ------------------------------------------------------------------ */
   function settleRun() {
     if (!run) { return; }
+    /* 本关已打完，断点存档作废，避免下次进来又跳回答题页 */
+    clearRunSnapshot();
     if (ticker) { window.clearInterval(ticker); ticker = null; }
 
     var budget = budgetFor(run.problems);
@@ -2476,6 +2602,22 @@
     hide(document.getElementById("resultPanel"));
 
     renderAll();
+
+    /* 刷新 / 切后台 / 关标签页的那一刻必须再落一次盘。
+     * 定时落盘（每 5 秒）只解决「页面一直开着」，解决不了「恰好在两次落盘之间刷新」：
+     * 那 0~5 秒会被永久丢掉，而且 renderQuestion 每次会把 questionStart 重置，
+     * 丢掉的段不会被后续重新计入——反复在 5 秒内刷新，用时可以被无限抹掉（白送品阶）。
+     * pagehide 覆盖刷新与关标签页；visibilitychange(hidden) 覆盖切后台被冻结/回收
+     * （后台标签页的 setInterval 会被浏览器节流甚至停掉，定时落盘指望不上）。
+     * 只记「到这一刻为止已经用了多久」，不按 wall-clock 补算离线时长——
+     * 否则存档放一周再回来会把一周算进用时。 */
+    window.addEventListener("pagehide", saveRunSnapshot);
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") { saveRunSnapshot(); }
+    });
+
+    /* 上次没答完就刷新或关了页面：直接接回答题页，不用从头再做 */
+    if (readRunSnapshot()) { tryResumeRun(); }
   }
 
   /* ------------------------------------------------------------------
@@ -2513,7 +2655,14 @@
         sceneText: run.plan.sceneText,
         difficulties: run.plan.difficulties.slice(0),
         index: run.index,
-        questionCount: run.problems.length
+        questionCount: run.problems.length,
+        /* 以下字段只供 scripts/resume_test.js 断言「刷新前后状态是否一致」，
+           与上方的抽样 / 品阶出口同属只读调试面，不参与页面行为。 */
+        elapsed: run.elapsed + pendingMs(),
+        usedHint: Boolean(run.usedHint),
+        usedSkip: Boolean(run.usedSkip),
+        retry: run.retry,
+        answered: Boolean(run.answered)
       };
     }
   };

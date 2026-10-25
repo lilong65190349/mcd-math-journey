@@ -488,6 +488,11 @@ mcd-math-journey/
 ├── README.md                     # 本文件
 ├── CONTEST_DECLARATION.md        # 参赛声明（原创 / 合规 / 信息安全 / 规则遵守）
 ├── SKILL.md                      # WorkBuddy Skill 描述（能力边界、只读白名单、工作流）
+├── skill/                        # 可分发的 WorkBuddy 技能包（装到 ~/.workbuddy/skills/ 即可用）
+│   ├── SKILL.md                  #   面向模型的操作指南（意图→命令映射、呈现规范、硬边界）
+│   ├── invoke.py                 #   薄启动器：定位项目根后转发给 scripts/cli.py（不复制业务代码）
+│   ├── install.py                #   一键安装到用户技能目录（幂等）
+│   └── README.md                 #   安装 / 验证 / 卸载说明
 ├── MCP_INTEGRATION.md            # 评委重点：MCP 调用链、业务价值、降级与安全设计
 ├── workbuddy.md                  # 用 WorkBuddy 开发本作品的复盘
 ├── mcp-config.example.json       # MCP 客户端配置示例（仅环境变量占位符）
