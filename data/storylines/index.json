@@ -42,6 +42,22 @@
       "available": true,
       "file": "shuihu.json",
       "era_note": "取材于《水浒传》原著（公有领域）"
+    },
+    {
+      "id": "nuozha",
+      "name": "哪吒闹海",
+      "subtitle": "陈塘渡口，账目分明",
+      "available": true,
+      "file": "nuozha.json",
+      "era_note": "取材于《封神演义》原著（公有领域）"
+    },
+    {
+      "id": "fengshen",
+      "name": "封神演义",
+      "subtitle": "渭水西岐，账册有数",
+      "available": true,
+      "file": "fengshen.json",
+      "era_note": "取材于《封神演义》原著（公有领域）"
     }
   ]
 }

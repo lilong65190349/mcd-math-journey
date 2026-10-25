@@ -1,0 +1,526 @@
+{
+  "id": "fengshen",
+  "name": "封神演义",
+  "subtitle": "渭水西岐，账册有数",
+  "era_note": "取材于《封神演义》原著（公有领域）",
+  "roles": {
+    "clever": "姜子牙",
+    "price": "散宜生",
+    "unit": "杨戬",
+    "review": "姬发"
+  },
+  "order": 7,
+  "scene_variants": [
+    "清早的",
+    "半晌的",
+    "午后的",
+    "黄昏的",
+    "天刚亮的",
+    "歇脚时的",
+    "动身前的",
+    "半路上的",
+    "入夜前的",
+    "归途中的"
+  ],
+  "version": "2.0.0",
+  "description": "「麦麦取经录」封神演义故事线：九关八十一难，只借渭水、西岐、朝歌之间的粮运场景作数学任务外壳，不叙述原典情节；数学模板与其他故事线完全一致。",
+  "disclaimer": "本文件中的故事情境仅作数学题目的比喻外壳，不含任何宗教、超自然或暴力表述；只取用公有领域古典小说里的人物与地名，不叙述原典情节。餐品数据以麦当劳官方渠道实时结果为准。",
+  "compliance_note": "本线仅取用公有领域古典小说的人物与地名，不涉及宗教表述、不涉及暴力或法术情节；所有题目为小学计算题。",
+  "stages": [
+    {
+      "stage": 1,
+      "name": "渭水点粮",
+      "theme": "合并与累加：把几堆粮食并成一堆",
+      "scene": "渭水渡口",
+      "role_focus": "姜子牙",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "fengshen-1-1",
+          "kp_id": "g3_add_sub",
+          "brief": "把渭水边几处粮袋的数量合并"
+        },
+        {
+          "level_id": "fengshen-1-2",
+          "kp_id": "g3_add_sub",
+          "brief": "先估一估总数，再逐项相加"
+        },
+        {
+          "level_id": "fengshen-1-3",
+          "kp_id": "g3_add_sub",
+          "brief": "两处送来的口粮合在一起清点"
+        },
+        {
+          "level_id": "fengshen-1-4",
+          "kp_id": "g3_add_sub",
+          "brief": "把各样干粮的斤数挨个累加"
+        },
+        {
+          "level_id": "fengshen-1-5",
+          "kp_id": "g3_add_sub",
+          "brief": "早间与午间的入库量相加"
+        },
+        {
+          "level_id": "fengshen-1-6",
+          "kp_id": "g3_add_sub",
+          "brief": "干粮和饮水一并记入总账"
+        },
+        {
+          "level_id": "fengshen-1-7",
+          "kp_id": "g3_add_sub",
+          "brief": "把当日入库逐笔汇总"
+        },
+        {
+          "level_id": "fengshen-1-8",
+          "kp_id": "g3_add_sub",
+          "brief": "各样辎重的重量合计"
+        },
+        {
+          "level_id": "fengshen-1-9",
+          "kp_id": "g3_add_sub",
+          "brief": "全部入库的总量是多少"
+        }
+      ]
+    },
+    {
+      "stage": 2,
+      "name": "西岐入库",
+      "theme": "先合后减：入库之后还剩多少",
+      "scene": "西岐粮场",
+      "role_focus": "姬昌",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "fengshen-2-1",
+          "kp_id": "g3_multi_sub",
+          "brief": "入库之后算算还剩多少余量"
+        },
+        {
+          "level_id": "fengshen-2-2",
+          "kp_id": "g3_multi_sub",
+          "brief": "从总库存里扣掉已发的部分"
+        },
+        {
+          "level_id": "fengshen-2-3",
+          "kp_id": "g3_multi_sub",
+          "brief": "先合后减，求剩余库存"
+        },
+        {
+          "level_id": "fengshen-2-4",
+          "kp_id": "g3_multi_sub",
+          "brief": "发下去的从总账里逐笔扣除"
+        },
+        {
+          "level_id": "fengshen-2-5",
+          "kp_id": "g3_multi_sub",
+          "brief": "预留与实发相差多少"
+        },
+        {
+          "level_id": "fengshen-2-6",
+          "kp_id": "g3_multi_sub",
+          "brief": "结算之后还剩多少可支配"
+        },
+        {
+          "level_id": "fengshen-2-7",
+          "kp_id": "g3_multi_sub",
+          "brief": "算算仓里还余下多少"
+        },
+        {
+          "level_id": "fengshen-2-8",
+          "kp_id": "g3_multi_sub",
+          "brief": "先算已出总量，再求结余"
+        },
+        {
+          "level_id": "fengshen-2-9",
+          "kp_id": "g3_multi_sub",
+          "brief": "出库之后剩下的数量"
+        }
+      ]
+    },
+    {
+      "stage": 3,
+      "name": "朝歌采办",
+      "theme": "单价与份数：一次采办的总价",
+      "scene": "朝歌集市",
+      "role_focus": "申公豹",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "fengshen-3-1",
+          "kp_id": "g3_money",
+          "brief": "按单价和数量算采办总价"
+        },
+        {
+          "level_id": "fengshen-3-2",
+          "kp_id": "g3_money",
+          "brief": "几个几相加就是乘法的意义"
+        },
+        {
+          "level_id": "fengshen-3-3",
+          "kp_id": "g3_money",
+          "brief": "一次采办总共花多少"
+        },
+        {
+          "level_id": "fengshen-3-4",
+          "kp_id": "g3_money",
+          "brief": "照价目表把总额算出来"
+        },
+        {
+          "level_id": "fengshen-3-5",
+          "kp_id": "g3_money",
+          "brief": "买多少件就乘多少倍"
+        },
+        {
+          "level_id": "fengshen-3-6",
+          "kp_id": "g3_money",
+          "brief": "先算每样金额，再合并"
+        },
+        {
+          "level_id": "fengshen-3-7",
+          "kp_id": "g3_money",
+          "brief": "用乘法求这批货的价钱"
+        },
+        {
+          "level_id": "fengshen-3-8",
+          "kp_id": "g3_money",
+          "brief": "单价乘件数得总金额"
+        },
+        {
+          "level_id": "fengshen-3-9",
+          "kp_id": "g3_money",
+          "brief": "采办清单上的合计金额"
+        }
+      ]
+    },
+    {
+      "stage": 4,
+      "name": "行营分拨",
+      "theme": "平均分拨：每一处能得到多少",
+      "scene": "岐山行营",
+      "role_focus": "姬发",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "fengshen-4-1",
+          "kp_id": "g3_div_basic",
+          "brief": "平均分到各处，每处多少"
+        },
+        {
+          "level_id": "fengshen-4-2",
+          "kp_id": "g3_div_basic",
+          "brief": "能装满几车，还余下多少"
+        },
+        {
+          "level_id": "fengshen-4-3",
+          "kp_id": "g3_div_basic",
+          "brief": "把库存平均分成若干份"
+        },
+        {
+          "level_id": "fengshen-4-4",
+          "kp_id": "g3_div_basic",
+          "brief": "求商和余数各是多少"
+        },
+        {
+          "level_id": "fengshen-4-5",
+          "kp_id": "g3_div_basic",
+          "brief": "每处一样多，一处多少"
+        },
+        {
+          "level_id": "fengshen-4-6",
+          "kp_id": "g3_div_basic",
+          "brief": "分拨之后还剩多少零头"
+        },
+        {
+          "level_id": "fengshen-4-7",
+          "kp_id": "g3_div_basic",
+          "brief": "按固定份额逐处发放"
+        },
+        {
+          "level_id": "fengshen-4-8",
+          "kp_id": "g3_div_basic",
+          "brief": "一共能供应多少处"
+        },
+        {
+          "level_id": "fengshen-4-9",
+          "kp_id": "g3_div_basic",
+          "brief": "平均分拨之后的每份数量"
+        }
+      ]
+    },
+    {
+      "stage": 5,
+      "name": "驿路称量",
+      "theme": "单位进率：克与千克的换算",
+      "scene": "驿站秤房",
+      "role_focus": "杨戬",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "fengshen-5-1",
+          "kp_id": "g3_unit_measure",
+          "brief": "称过之后按克登记总量"
+        },
+        {
+          "level_id": "fengshen-5-2",
+          "kp_id": "g3_unit_measure",
+          "brief": "把克数换成千克记入册子"
+        },
+        {
+          "level_id": "fengshen-5-3",
+          "kp_id": "g3_unit_measure",
+          "brief": "先求总克数，再换单位"
+        },
+        {
+          "level_id": "fengshen-5-4",
+          "kp_id": "g3_unit_measure",
+          "brief": "每袋净重乘袋数再换算"
+        },
+        {
+          "level_id": "fengshen-5-5",
+          "kp_id": "g3_unit_measure",
+          "brief": "驿站登记的千克数是多少"
+        },
+        {
+          "level_id": "fengshen-5-6",
+          "kp_id": "g3_unit_measure",
+          "brief": "合计重量要用千克表示"
+        },
+        {
+          "level_id": "fengshen-5-7",
+          "kp_id": "g3_unit_measure",
+          "brief": "克与千克之间的进率换算"
+        },
+        {
+          "level_id": "fengshen-5-8",
+          "kp_id": "g3_unit_measure",
+          "brief": "把称得的重量换成千克"
+        },
+        {
+          "level_id": "fengshen-5-9",
+          "kp_id": "g3_unit_measure",
+          "brief": "登记册上的总重量"
+        }
+      ]
+    },
+    {
+      "stage": 6,
+      "name": "驿程记里",
+      "theme": "经过时间：驿程一共走了几天",
+      "scene": "驿路官道",
+      "role_focus": "闻仲",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "fengshen-6-1",
+          "kp_id": "g3_calendar",
+          "brief": "按天数算算走了多少里"
+        },
+        {
+          "level_id": "fengshen-6-2",
+          "kp_id": "g3_calendar",
+          "brief": "从出发到抵达共经过几天"
+        },
+        {
+          "level_id": "fengshen-6-3",
+          "kp_id": "g3_calendar",
+          "brief": "每日里程乘天数得总里程"
+        },
+        {
+          "level_id": "fengshen-6-4",
+          "kp_id": "g3_calendar",
+          "brief": "用 24 时计时法算经过时间"
+        },
+        {
+          "level_id": "fengshen-6-5",
+          "kp_id": "g3_calendar",
+          "brief": "含首尾一共记多少日"
+        },
+        {
+          "level_id": "fengshen-6-6",
+          "kp_id": "g3_calendar",
+          "brief": "驿路上用掉的时间合计"
+        },
+        {
+          "level_id": "fengshen-6-7",
+          "kp_id": "g3_calendar",
+          "brief": "整个行程横跨几昼夜"
+        },
+        {
+          "level_id": "fengshen-6-8",
+          "kp_id": "g3_calendar",
+          "brief": "按日程表推进累计多少天"
+        },
+        {
+          "level_id": "fengshen-6-9",
+          "kp_id": "g3_calendar",
+          "brief": "全程耗时是多少"
+        }
+      ]
+    },
+    {
+      "stage": 7,
+      "name": "帐中分食",
+      "theme": "部分与整体：分到整体的几分之几",
+      "scene": "帐中案前",
+      "role_focus": "黄飞虎",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "fengshen-7-1",
+          "kp_id": "g3_fraction_intro",
+          "brief": "求出这份粮占整体的几分之几"
+        },
+        {
+          "level_id": "fengshen-7-2",
+          "kp_id": "g3_fraction_intro",
+          "brief": "平分成几份之后取其中一份"
+        },
+        {
+          "level_id": "fengshen-7-3",
+          "kp_id": "g3_fraction_intro",
+          "brief": "部分与整体的比是多少"
+        },
+        {
+          "level_id": "fengshen-7-4",
+          "kp_id": "g3_fraction_intro",
+          "brief": "算出的分数要约成最简"
+        },
+        {
+          "level_id": "fengshen-7-5",
+          "kp_id": "g3_fraction_intro",
+          "brief": "一处分到整体的几分之几"
+        },
+        {
+          "level_id": "fengshen-7-6",
+          "kp_id": "g3_fraction_intro",
+          "brief": "先求部分再求所占份额"
+        },
+        {
+          "level_id": "fengshen-7-7",
+          "kp_id": "g3_fraction_intro",
+          "brief": "把分到的量写成最简分数"
+        },
+        {
+          "level_id": "fengshen-7-8",
+          "kp_id": "g3_fraction_intro",
+          "brief": "占总量几成要写成分数"
+        },
+        {
+          "level_id": "fengshen-7-9",
+          "kp_id": "g3_fraction_intro",
+          "brief": "论功分粮时占到哪一份"
+        }
+      ]
+    },
+    {
+      "stage": 8,
+      "name": "账册核算",
+      "theme": "平均数：总数除以份数",
+      "scene": "西岐账房",
+      "role_focus": "土行孙",
+      "grade_hint": 4,
+      "levels": [
+        {
+          "level_id": "fengshen-8-1",
+          "kp_id": "g4_bar_chart",
+          "brief": "求这几样物资的平均单价"
+        },
+        {
+          "level_id": "fengshen-8-2",
+          "kp_id": "g4_bar_chart",
+          "brief": "总数除以份数得平均数"
+        },
+        {
+          "level_id": "fengshen-8-3",
+          "kp_id": "g4_bar_chart",
+          "brief": "一日的平均开销是多少"
+        },
+        {
+          "level_id": "fengshen-8-4",
+          "kp_id": "g4_bar_chart",
+          "brief": "把总额平摊到每份上"
+        },
+        {
+          "level_id": "fengshen-8-5",
+          "kp_id": "g4_bar_chart",
+          "brief": "平均每样值多少钱"
+        },
+        {
+          "level_id": "fengshen-8-6",
+          "kp_id": "g4_bar_chart",
+          "brief": "冲抵之后每份的平均值"
+        },
+        {
+          "level_id": "fengshen-8-7",
+          "kp_id": "g4_bar_chart",
+          "brief": "平摊以后每份的价钱"
+        },
+        {
+          "level_id": "fengshen-8-8",
+          "kp_id": "g4_bar_chart",
+          "brief": "几笔账合起来的平均额"
+        },
+        {
+          "level_id": "fengshen-8-9",
+          "kp_id": "g4_bar_chart",
+          "brief": "平均每日的消耗量"
+        }
+      ]
+    },
+    {
+      "stage": 9,
+      "name": "市集结账",
+      "theme": "满减与折扣：原价减去优惠",
+      "scene": "朝歌货栈",
+      "role_focus": "散宜生",
+      "grade_hint": 6,
+      "levels": [
+        {
+          "level_id": "fengshen-9-1",
+          "kp_id": "g6_discount",
+          "brief": "满减之后实际付多少"
+        },
+        {
+          "level_id": "fengshen-9-2",
+          "kp_id": "g6_discount",
+          "brief": "按券面额算抵扣后的金额"
+        },
+        {
+          "level_id": "fengshen-9-3",
+          "kp_id": "g6_discount",
+          "brief": "求出实付金额是多少"
+        },
+        {
+          "level_id": "fengshen-9-4",
+          "kp_id": "g6_discount",
+          "brief": "折扣算完应付多少钱"
+        },
+        {
+          "level_id": "fengshen-9-5",
+          "kp_id": "g6_discount",
+          "brief": "结账时能省下多少"
+        },
+        {
+          "level_id": "fengshen-9-6",
+          "kp_id": "g6_discount",
+          "brief": "满减门槛够不够，够了抵扣"
+        },
+        {
+          "level_id": "fengshen-9-7",
+          "kp_id": "g6_discount",
+          "brief": "优惠后相当于便宜了几成"
+        },
+        {
+          "level_id": "fengshen-9-8",
+          "kp_id": "g6_discount",
+          "brief": "折扣率换算成实付额"
+        },
+        {
+          "level_id": "fengshen-9-9",
+          "kp_id": "g6_discount",
+          "brief": "结账时最后付出的金额"
+        }
+      ]
+    }
+  ]
+}

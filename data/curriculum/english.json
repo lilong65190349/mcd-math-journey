@@ -1,0 +1,88 @@
+{
+  "version": "1.0.0",
+  "subject": "english",
+  "description": "小学 3-6 年级英语知识点图谱（单词拼写），供出题引擎按 skill 派发到 scripts/subjects/english/templates.py。",
+  "curriculum_note": "英语学科与语文同构：不参与「九关八十一难」的故事线玩法，出题走 generate(kp_id=..., subject='english') 的无故事线路径，通过 CLI 交付；题库不进演示页。本期只交付 spell_fill（单词拼写）一个可用题型；templates.py 里另有一个 word_choice 占位，明确抛 NotImplementedError 标注赛后迭代，但**没有任何知识点指向它**——不放一个点了就崩的入口进图谱。判分走 verify.check_answer 的 text 分支（归一化后集合命中），不做编辑距离模糊匹配：小学拼写题的考点就是精确拼写。",
+  "grades": [
+    {
+      "grade": 3,
+      "kps": [
+        {
+          "id": "e3_spell_fruit",
+          "subject": "english",
+          "skill": "spell_fill",
+          "name": "水果单词拼写",
+          "desc": "根据中文意思与首字母提示，拼出常见水果的英文单词。",
+          "keywords": ["单词", "拼写", "水果"],
+          "textbook_ref": "人教版 PEP 三上 Unit 5 Let's eat",
+          "note": "全部为三会词，拼写长度 3-7 个字母。"
+        },
+        {
+          "id": "e3_spell_animal",
+          "subject": "english",
+          "skill": "spell_fill",
+          "name": "动物单词拼写",
+          "desc": "根据中文意思与首字母提示，拼出常见动物的英文单词。",
+          "keywords": ["单词", "拼写", "动物"],
+          "textbook_ref": "人教版 PEP 三下 Unit 3 At the zoo",
+          "note": "全部为三会词，拼写长度 3-6 个字母。"
+        }
+      ]
+    },
+    {
+      "grade": 4,
+      "kps": [
+        {
+          "id": "e4_spell_school",
+          "subject": "english",
+          "skill": "spell_fill",
+          "name": "学校用品拼写",
+          "desc": "根据中文意思与首字母提示，拼出教室与书包里常见物品的英文单词。",
+          "keywords": ["单词", "拼写", "学校"],
+          "textbook_ref": "人教版 PEP 四上 Unit 2 My schoolbag",
+          "note": "全部为四会词。"
+        },
+        {
+          "id": "e4_spell_food",
+          "subject": "english",
+          "skill": "spell_fill",
+          "name": "食物单词拼写",
+          "desc": "根据中文意思与首字母提示，拼出常见食物与饮料的英文单词。",
+          "keywords": ["单词", "拼写", "食物"],
+          "textbook_ref": "人教版 PEP 四上 Unit 5 Dinner's ready",
+          "note": "全部为四会词；含少量英式与美式写法差异的词，差异在 accept 里显式登记。"
+        }
+      ]
+    },
+    {
+      "grade": 5,
+      "kps": [
+        {
+          "id": "e5_spell_week",
+          "subject": "english",
+          "skill": "spell_fill",
+          "name": "星期与月份拼写",
+          "desc": "根据中文意思拼出星期与月份的英文单词，注意首字母大写。",
+          "keywords": ["单词", "拼写", "星期", "月份"],
+          "textbook_ref": "人教版 PEP 五下 Unit 2 My favourite season",
+          "note": "判分不区分大小写（归一化时统一小写），所以写 monday 也算对——考点在拼写不在大小写。"
+        }
+      ]
+    },
+    {
+      "grade": 6,
+      "kps": [
+        {
+          "id": "e6_spell_nature",
+          "subject": "english",
+          "skill": "spell_fill",
+          "name": "自然与天气拼写",
+          "desc": "根据中文意思与首字母提示，拼出天气与自然现象的英文单词。",
+          "keywords": ["单词", "拼写", "天气", "自然"],
+          "textbook_ref": "人教版 PEP 六下 Unit 2 Last weekend 等",
+          "note": "全部为四会词；含少量英美写法差异的词，差异在 accept 里显式登记。"
+        }
+      ]
+    }
+  ]
+}

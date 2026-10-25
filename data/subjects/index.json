@@ -1,0 +1,62 @@
+{
+  "version": "1.1.0",
+  "default": "math",
+  "note": "学科注册表。每个学科声明五件事：知识点图谱文件（curriculum）、题型模板模块（templates）、是否上线（available）、本学科允许出现的答案类型（answerTypes）、各 skill 的中文显示名（skillNames）。新增一个学科 = 这里加一项 + 建一份 curriculum 文件 + 建一个 templates 模块，出题、校验、讲解、错题本全部自动复用，不改任何已有代码分支。",
+  "answerTypes": ["number", "percent", "fraction", "text", "enum"],
+  "answerTypesNote": "全系统已知的答案类型全集。新增类型必须同时改四处：problem_gen._answer_targets / problem_gen._hint_leaks、verify.check_answer、本文件的该学科 answerTypes、selfcheck 的断言表。四处缺一即静默失效。",
+  "skillNamesNote": "skillNames 是给用户看的题型中文名。skill 名（add / poem_fill / spell_fill）是内部标识，不能直接印到界面上——`语文 · poem_fill` 对小学生没有意义。显示名放这里而不是硬编码在 cli.py，才能跟着学科扩展一起长。缺项时 problem_gen.subjects.skill_label() 会退回 skill 原名，不会崩。",
+  "subjects": [
+    {
+      "id": "math",
+      "name": "数学",
+      "available": true,
+      "curriculum": "data/curriculum.json",
+      "templates": "problem_gen",
+      "templatesAttr": "_MATH_TEMPLATES",
+      "answerTypes": ["number", "percent", "fraction"],
+      "demoBank": true,
+      "skillNames": {
+        "add": "加法合并",
+        "sub": "连减剩余",
+        "mul": "乘法总价",
+        "div": "平均分与余数",
+        "decimal": "单位与小数",
+        "time": "时间与行程",
+        "percent": "分数与百分数",
+        "average": "平均数",
+        "discount": "折扣与满减"
+      },
+      "description": "小学 3-6 年级数学（数与运算 / 数量关系 / 测量 / 统计与概率）。题型模板历史上与「第几关」绑定，现由 _MATH_TEMPLATES 以 skill 名索引，供故事线通过 kp.skill 或 stage.op_family 派发。"
+    },
+    {
+      "id": "chinese",
+      "name": "语文",
+      "available": true,
+      "curriculum": "data/curriculum/chinese.json",
+      "templates": "subjects.chinese.templates",
+      "templatesAttr": "TEMPLATES",
+      "answerTypes": ["text", "enum"],
+      "demoBank": false,
+      "skillNames": {
+        "poem_fill": "古诗默写",
+        "word_order": "字词辨析"
+      },
+      "description": "小学 3-6 年级语文（古诗积累与字词辨析）。答案以文本给出，判分走归一化后的同义集合命中；本学科题目不进演示页题库（演示页只做数值比对），通过 CLI 交付。"
+    },
+    {
+      "id": "english",
+      "name": "英语",
+      "available": true,
+      "curriculum": "data/curriculum/english.json",
+      "templates": "subjects.english.templates",
+      "templatesAttr": "TEMPLATES",
+      "answerTypes": ["text", "enum"],
+      "demoBank": false,
+      "skillNames": {
+        "spell_fill": "单词拼写",
+        "word_choice": "词义选择（未实现）"
+      },
+      "description": "小学 3-6 年级英语（单词拼写与词义辨析）。本期交付 spell_fill 一个可用题型，其余 skill 明确标注 TODO；同样不进演示页题库，通过 CLI 交付。"
+    }
+  ]
+}

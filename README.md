@@ -1,7 +1,7 @@
 # 麦麦取经录 · mcd-math-journey
 
 ```
-[ Python 3.13 ]  [ 纯标准库 · 零第三方依赖 ]  [ 只读 MCP · 不下单 ]  [ 无令牌可离线跑 ]  [ 5 条故事线 ]  [ MIT ]
+[ Python 3.13 ]  [ 纯标准库 · 零第三方依赖 ]  [ 只读 MCP · 不下单 ]  [ 无令牌可离线跑 ]  [ 7 条故事线 ]  [ MIT ]
 ```
 
 > **题目里的数字都是真的，答案由麦当劳 MCP 真实计算校验。**
@@ -44,12 +44,12 @@
    `PermissionError`；`create-order`、`cancel-order`、`draw-lottery` 等写操作在代码层面不可达。
 5. **不采集儿童信息**：进度只写本机 SQLite（`runtime/progress.db`），没有姓名、手机号、
    学校、生日等任何字段，也不上传。
-6. **故事线可插拔**：5 条故事线 × 9 关 × 9 难 = **405 个关卡位**，共用同一套 9 个数学模板。
+6. **故事线可插拔**：7 条故事线 × 9 关 × 9 难 = **567 个关卡位**，共用同一套 9 个数学模板。
    同一知识点在不同故事线下共享数学骨架，题目数据取自麦当劳 MCP 实时菜单，题面随数据与难度变化；
    新增/下线一条线只需改 `data/storylines/index.json` 里的 `available`，不需要动任何数学代码。
 
 7. **闯关有奖励，但只奖励专注**：一次挑战抽 1~3 题、按用时评金银铜三档，通关收角色卡；
-   **干净通关**（不看提示、不答错、不跳过）才解锁那段角色介绍。70 名角色、5 条故事线顺序解锁，
+   **干净通关**（不看提示、不答错、不跳过）才解锁那段角色介绍。98 名角色、7 条故事线顺序解锁，
    规则参数外置成 `data/run_rules.json`，命令行与演示页判出来的品阶完全一致。
 
 8. **背景氛围图 base64 内联，演示页仍是单文件**：5 张麦当劳风格背景位图（金拱门横幅 / 全站底纹 /
@@ -100,7 +100,7 @@
 | 老师 | 按知识点出题 `play --kp g3_div_basic` | 直接把真实数据场景搬进课堂，题目可复算 |
 | 开发者 / 评委 | 读 `MCP_INTEGRATION.md`、跑 `doctor` | 看到 MCP 真实调用链与降级策略 |
 
-## 四、5 条故事线（每条九关八十一难）
+## 四、7 条故事线（每条九关八十一难）
 
 同一套 9 个数学模板，换一条故事线只是换**关名、角色与题面文案**——数学逻辑一行都不改。
 故事线在 `data/storylines/index.json` 里注册，`available: false` 的线**不上线**：
@@ -113,8 +113,10 @@ CLI 的 `stages` / `stories` 不列出、演示页不显示、出题也不会注
 | `silu` | 丝路商队 | 驼铃西去，账目分明 | 古代丝绸之路商旅常识（长安、敦煌、疏勒、撒马尔罕等古地名） |
 | `zhenghe` | 郑和下西洋 | 宝船远航，补给有数 | 郑和下西洋的史料记载（历史事实） |
 | `shuihu` | 水浒传 | 聚义分粮，账目公平 | 《水浒传》原著（公有领域） |
+| `nuozha` | 哪吒闹海 | 陈塘渡口，账目分明 | 《封神演义》原著（公有领域），只借人物与地名 |
+| `fengshen` | 封神演义 | 渭水西岐，账册有数 | 《封神演义》原著（公有领域），只借人物与地名 |
 
-**九关的数学骨架五条线完全一致**（这正是模板能复用的原因）：
+**九关的数学骨架七条线完全一致**（这正是模板能复用的原因）：
 
 | 关卡 | 主知识点 | 年级 | 真实数据场景 | 数学任务 |
 | --- | --- | --- | --- | --- |
@@ -128,10 +130,10 @@ CLI 的 `stages` / `stories` 不列出、演示页不显示、出题也不会注
 | 8 | 统计与平均数 | 4 | 菜单价格 | 平均价格 |
 | 9 | 折扣与方案比较 | 6 | 麦麦省券（门槛 / 面额） | 实付金额最少是多少 |
 
-每关 9 难，每条线 81 关，五条线合计 405 个关卡位（81 × 5）。
+每关 9 难，每条线 81 关，七条线合计 567 个关卡位（81 × 7）。
 难度沿「数据项更多 / 步骤更多 / 数位更大」三个方向递进。
 
-> **关于「405」的口径**：405 是**关卡位**（story × stage × difficulty），不是 405 道互不相同的题。
+> **关于「567」的口径**：567 是**关卡位**（story × stage × difficulty），不是 567 道互不相同的题。
 > 9 个模板只按「第几关」索引，同一知识点在不同故事线下共享同一套数学骨架。
 > 以默认线西游记为例，81 关在固定种子下产出 **81 条不同题面**——第 1/3/5/8 关靠**份数 / 样数档位**
 > （2→10 逐级递增）拉开，第 2/4/6 关的题面里写着预算 / 积分 / 每日里程，第 7、9 关再按难度轮换餐品与购物篮；
@@ -225,7 +227,47 @@ CLI 的 `stages` / `stories` 不列出、演示页不显示、出题也不会注
 > `play --grade N` 的筛选口径就是「知识点所属年级」，命令行会把年级与所属关分开显示
 > （`年级：4 年级（知识点所属）｜所属关：第 8 关 点将统兵`），筛选与展示完全一致。
 
-### 4.6 闯关玩法：解锁链 · 随机抽题 · 品阶 · 角色（v2.0 新增）
+### 4.6 哪吒闹海（`nuozha`）
+
+`nuozha-1-1 … nuozha-9-9`　情境角色：李靖 / 哪吒 / 敖丙 / 龟丞相
+
+| 关卡 | 关名 | 主题 | 情境角色 |
+| --- | --- | --- | --- |
+| 1 | 陈塘点货 | 把两堆干粮合起来：加法就是把数量并成一堆 | 李靖 |
+| 2 | 渡口卸船 | 先合后减：用掉一部分，还要知道剩下多少 | 殷夫人 |
+| 3 | 集市采买 | 几个几：单价乘份数就是总价 | 哪吒 |
+| 4 | 鱼篓分装 | 平均分：把总量分成一样多的几份 | 木吒 |
+| 5 | 过秤登记 | 单位进率：克与千克之间的换算 | 金吒 |
+| 6 | 潮时记刻 | 经过时间：从开始到结束一共走了多久 | 太乙真人 |
+| 7 | 棚屋分饼 | 部分与整体：分到的是整体的几分之几 | 敖丙 |
+| 8 | 账目复核 | 平均数：总数除以份数 | 东海龙王 |
+| 9 | 采买结算 | 满减与折扣：原价减去优惠才是实付 | 龟丞相 |
+
+### 4.7 封神演义（`fengshen`）
+
+`fengshen-1-1 … fengshen-9-9`　情境角色：姜子牙 / 姬发 / 杨戬 / 散宜生
+
+| 关卡 | 关名 | 主题 | 情境角色 |
+| --- | --- | --- | --- |
+| 1 | 渭水点粮 | 合并与累加：把几堆粮食并成一堆 | 姜子牙 |
+| 2 | 西岐入库 | 先合后减：入库之后还剩多少 | 姬昌 |
+| 3 | 朝歌采办 | 单价与份数：一次采办的总价 | 申公豹 |
+| 4 | 行营分拨 | 平均分拨：每一处能得到多少 | 姬发 |
+| 5 | 驿路称量 | 单位进率：克与千克的换算 | 杨戬 |
+| 6 | 驿程记里 | 经过时间：驿程一共走了几天 | 闻仲 |
+| 7 | 帐中分食 | 部分与整体：分到整体的几分之几 | 黄飞虎 |
+| 8 | 账册核算 | 平均数：总数除以份数 | 土行孙 |
+| 9 | 市集结账 | 满减与折扣：原价减去优惠 | 散宜生 |
+
+> **这两条新线是「故事线与题库解耦」的活体验证**：它们的关卡数据里**不写**
+> `op_family`、也**不写** `data_hint` —— 派发键完全靠知识点自带的小数/减法/折扣等
+> `skill` 名解析出来（三级 fallback 的最后一级）。也就是说，**加一条故事线真的只需要
+> 加「故事线 JSON + 角色 JSON + 注册表一行」**，一个字的代码都不用改。
+>
+> 题材合规：只取用《封神演义》原著（公有领域）的人物名与地名，**不叙述原典情节**，
+> 不写打斗、不写法术、不写宗教表述——和既有 5 条线的「叙事外壳」写法完全一致。
+
+### 4.8 闯关玩法：解锁链 · 随机抽题 · 品阶 · 角色（v2.0 新增）
 
 规则全文在 `docs/SYSTEM_RULES.md`（唯一真相源，改规则先改文档）。这里是给评委看的摘要。
 
@@ -281,7 +323,7 @@ python scripts/cli.py play --level 3-2                    # 旧的单题模式�
 python scripts/cli.py characters                          # 角色图鉴（未遇见 / 已收集待解锁 / 已解锁）
 python scripts/cli.py characters --story xiyou --unlocked-only
 python scripts/cli.py stages --story xiyou                # 9 关的锁定态、最高品阶徽记
-python scripts/cli.py stories                             # 5 条线的解锁进度与锁状态
+python scripts/cli.py stories                             # 7 条线的解锁进度与锁状态
 ```
 
 未解锁的关卡 `exit=2` 且只给一句友好提示（`第 4 关尚未解锁（需先通关第 3 关）`），不会抛 traceback。
@@ -298,6 +340,76 @@ ratio / 品阶徽记）、角色卡入手、图鉴三状态，进度按 `story` 
 `journey.draw_run` 在 Python 侧重算复核**，`selfcheck.py` 跑的就是这一层；
 演示页 JS 与 Python 抽到的是否逐位一致，是在开发期用 node + DOM 桩（自己搭的最小 DOM 桩，
 不开浏览器）手工比对过的，这个比对脚本不随仓库发布，`selfcheck` 也不会执行页面里的 JS。
+
+### 4.9 扩展指南：加一条故事线 / 加一个学科
+
+这一节是本次改造的**验收标准本身**：如果「加内容只加文件、不改代码」这句话是真的，
+那么下面的步骤就必须是完整的全部步骤。
+
+#### 4.9.1 新增一条故事线 = 加 3 个文件
+
+1. `data/storylines/<id>.json` —— 9 关 × 9 难。每关写 `stage / name / theme / scene / role_focus / grade_hint / levels[9]`；
+   每难写 `level_id`（格式 `<id>-<关>-<难>`）、`kp_id`、`brief`（≤30 字、线内不重复）。
+   **不需要写 `op_family`**：派发键会依次尝试 `level.skill` → `stage.op_family` → `kp.skill`，
+   最后一级就是知识点自带的小数/减法/折扣等技能名。
+2. `data/characters/<id>.json` —— 14 名角色（9 名闯关大将 + 5 名守关大将），
+   `intro` 60~150 字且含数学线索，`title` / `intro_locked_hint` 非空。
+3. `data/storylines/index.json` —— 加一项 `{id, name, subtitle, available: true, file, era_note}`。
+
+然后跑一次 `python scripts/export_demo_bank.py --offline` 重导题库，再跑 `python scripts/selfcheck.py`。
+**零代码改动**。哪吒闹海（`nuozha`）与封神演义（`fengshen`）就是这么加上去的——
+它们的关卡数据里连 `op_family` 都没有，正是为了让「新路径真的可行」这件事有活体证据。
+
+#### 4.9.2 新增一个学科 = 加 3 个文件 + 1 个注册项
+
+1. `data/curriculum/<学科>.json` —— 知识点图谱，每个 kp 必须带 `subject`（= 本学科 id）与 `skill`（题型名），
+   `id` 前缀与既有学科天然不冲突（数学 `g*_*`、语文 `c*_*`、英语 `e*_*`）。
+2. `scripts/subjects/<学科>/__init__.py` —— 空包标记。
+3. `scripts/subjects/<学科>/templates.py` —— 导出 `TEMPLATES = {"<skill>": 函数}`，
+   函数返回与数学模板**同构**的 dict（`question / answer / answer_type / hints / steps / unit / role / story / verify`，
+   文本题再加 `accept`）。
+4. `data/subjects/index.json` —— 加一项：`{id, name, available, curriculum, templates, templatesAttr, answerTypes, demoBank}`。
+
+**零代码改动**。语文与英语就是这么加上的。
+
+#### 4.9.3 语文 / 英语怎么用（命令行）
+
+```bash
+# 语文：古诗补全（答案是文字，标点可不写全）
+python scripts/cli.py play --subject chinese --kp c3_poem_spring --seed demo
+
+# 语文：字词辨析（选择题，answer_type=enum）
+python scripts/cli.py play --subject chinese --kp c5_word_idiom --seed demo
+
+# 英语：单词拼写（大小写不敏感；变体在 accept 里显式登记）
+python scripts/cli.py play --subject english --kp e3_spell_fruit --seed demo
+```
+
+也可以直接调 API：
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import problem_gen, verify
+
+q = problem_gen.generate(kp_id="c6_poem_philosophy", subject="chinese", salt="demo")
+print(q["question"])                                    # 题面
+print(verify.check_answer(q, q["answer"])["correct"])     # True
+print(verify.check_answer(q, "乱写的")["correct"])         # False
+```
+
+**为什么语文 / 英语不进演示页题库**：演示页的判分只有数值比较（
+`answerType === "fraction" ? 1e-9 : TOL`），没有文本比对分支；把文字答案塞进题库会变成「永远判错」。
+所以 `export_demo_bank.py` 里显式跳过 `subject != "math"` 的题，567 道演示题全是数学——
+**前端零改动、`egg` / `resume` 两套共 202 条断言零风险**。
+
+#### 4.9.4 新增一个题型（skill）
+
+只需要两处：在对应学科的 `templates.py` 里写一个函数并登记进 `TEMPLATES`，
+再在 `curriculum/<学科>.json` 里给某个 kp 写上该 `skill` 名。
+**注意 `answer_type` 有硬约束**：只有 `number / percent / fraction / text / enum` 五种已知类型，
+新增类型必须同时改四处——`problem_gen._answer_targets`、`problem_gen._hint_leaks`、
+`verify.check_answer`、`data/subjects/index.json` 的 `answerTypes`。
+四处缺任意一处，「提示不泄露答案」就会静默失效（`selfcheck` 会断言这一点）。
 
 ## 五、安装
 
@@ -358,7 +470,7 @@ python scripts/cli.py play --story silu --grade 4 --count 5  # 丝路商队，�
 python scripts/cli.py play --level 3                         # 西游记第 3 关
 python scripts/cli.py play --story sanguo --stage 2          # 三国演义第 2 关
 python scripts/cli.py characters --story xiyou               # 角色图鉴（三种状态）
-python scripts/cli.py stories                                # 5 条线的解锁进度
+python scripts/cli.py stories                                # 7 条线的解锁进度
 
 # 5. 一次性抓取全部数据并写缓存
 python scripts/data_source.py --fetch
@@ -500,7 +612,11 @@ mcd-math-journey/
 ├── scripts/
 │   ├── mcp_client.py             # 纯标准库 MCP 客户端（JSON-RPC 2.0 / SSE）
 │   ├── data_source.py            # 三级降级数据层 + CLI（--fetch / --status）
-│   ├── problem_gen.py            # 9 个题型模板 + 故事线装载（只按关号索引）
+│   ├── problem_gen.py            # 9 个题型模板 + 三级 fallback 派发（level→stage→kp.skill）
+│   ├── subjects/                 # 学科扩展：动态加载器 + 各学科的题型模板
+│   │   ├── __init__.py           #   学科注册表读取 + load_templates/get_template
+│   │   ├── chinese/templates.py  #   语文：古诗补全 / 字词辨析
+│   │   └── english/templates.py  #   英语：单词拼写（其余题型标注 TODO）
 │   ├── verify.py                 # Decimal 校验 + calculate-price 复核 + 错因诊断 + 讲解
 │   ├── journey.py                # 闯关规则引擎（解锁 / 抽题 / 品阶 / 收集，纯逻辑可单测）
 │   ├── characters.py             # 角色库加载与三种状态判定
@@ -509,26 +625,32 @@ mcd-math-journey/
 │   ├── export_demo_bank.py       # 生成 demo/bank.json 并注入 demo/index.html（题库 + 彩蛋引擎 + 背景位图 base64）
 │   └── selfcheck.py              # 文档防漂移 + 故事线完整性 + demo 题库一致性 + 闯关规则断言
 ├── data/
-│   ├── curriculum.json           # 25 个知识点（3-6 年级）
+│   ├── curriculum.json           # 26 个数学知识点（3-6 年级，含新增的「折扣与满减」）
+│   ├── curriculum/               # 其他学科的知识点图谱（chinese.json / english.json）
+│   ├── subjects/index.json       # 学科注册表（curriculum / templates / answerTypes / 是否上线）
 │   ├── run_rules.json            # 闯关规则参数（CLI 与演示页共用的唯一一份）
 │   ├── characters/               # 角色库：每线 14 名（9 闯关大将 + 5 守关池）
 │   │   ├── xiyou.json            #   西游记：唐僧 / 孙悟空 / 猪八戒 …
 │   │   ├── sanguo.json           #   三国演义：刘备 / 关羽 / 诸葛亮 …
 │   │   ├── silu.json             #   丝路商队：老掌柜 / 驼队管事 / 账房先生 …
 │   │   ├── zhenghe.json          #   郑和下西洋：正使 / 火长 / 舵手 …
-│   │   └── shuihu.json           #   水浒传：宋江 / 吴用 / 林冲 …
+│   │   ├── shuihu.json           #   水浒传：宋江 / 吴用 / 林冲 …
+│   │   ├── nuozha.json           #   哪吒闹海：李靖 / 哪吒 / 敖丙 …
+│   │   └── fengshen.json         #   封神演义：姜子牙 / 姬发 / 杨戬 …
 │   └── storylines/
 │       ├── index.json            # 故事线注册表（available 控制是否上线，顺序即解锁顺序）
 │       ├── xiyou.json            # 西游记：9 关 × 9 难 = 81
 │       ├── sanguo.json           # 三国演义：81
 │       ├── silu.json             # 丝路商队：81
 │       ├── zhenghe.json          # 郑和下西洋：81
-│       └── shuihu.json           # 水浒传：81
+│       ├── shuihu.json           # 水浒传：81
+│       ├── nuozha.json           # 哪吒闹海：81（不写 op_family，靠 kp.skill 派发）
+│       └── fengshen.json         # 封神演义：81（同上）
 ├── docs/
 │   └── SYSTEM_RULES.md           # 闯关系统的规则唯一真相源（15 节）
 ├── demo/
 │   ├── sample_data.json          # 示例数据快照（12 个餐品）
-│   ├── bank.json                 # 405 道演示题 + 70 名角色 + 规则参数 + 固定用例（脚本生成，勿手改）
+│   ├── bank.json                 # 567 道演示题 + 98 名角色 + 规则参数 + 固定用例（脚本生成，勿手改）
 │   ├── assets/                   # 背景氛围位图的「源文件」（5 张 jpg，合计 534,106 字节 ≈ 521.6 KiB）
 │   │   ├── bg-hero.jpg           #   横幅：金拱门主视觉（1536×944，133,046 字节）
 │   │   ├── bg-pattern.jpg        #   全站底纹：极淡的金拱门平铺纹（1024×944，62,614 字节）
@@ -560,9 +682,9 @@ mcd-math-journey/
 不一致就打印「README:行号 期望/实际」并以退出码 1 失败。同一次自检还会验证：
 每条 `available` 故事线是 9 关 × 9 难、`brief` 线内不重复、`kp_id` 命中知识点图谱；
 **用当前代码把演示题库重新导出一遍**，与 `demo/bank.json` 和 `demo/index.html` 的内联题库三方比对（两边一起改错也会被抓到）；
-README 里的「405 个关卡位 / 81 关 / 81 条不同题面」与实际出题结果一致；
+README 里的「567 个关卡位 / 81 关 / 81 条不同题面」与实际出题结果一致；
 以及闯关系统的那一批规则断言（解锁链、故事线链、1000 个 seed 的随机覆盖、可复现、品阶五个边界、
-收集与介绍解锁、135 条固定用例与 Python 重算结果一致、70 条角色介绍与 50 条场景修饰语的红线词）。
+收集与介绍解锁、135 条固定用例与 Python 重算结果一致、98 条角色介绍与 70 条场景修饰语的红线词）。
 背景位图也一并校验：5 张全部内联、base64 负载与 `demo/assets/` 源文件逐字节对应、5 个消费点都接上了、
 页面零外部请求、体积落在 1.2MB~2MB 区间，且背景令牌**没有覆盖全局 `--ink` / `--card`**。
 上面这些断言全部跑在 Python 侧；演示页里的 JS 不在 `selfcheck` 的检查范围内（见 4.6 节末尾的说明）。

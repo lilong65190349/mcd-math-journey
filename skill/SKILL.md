@@ -74,17 +74,24 @@ python <INVOKE> doctor
 
 ## 二、意图 → 命令映射表
 
-> `--story` 的合法取值只有 5 个已上线 id：`xiyou`（西游记，默认）/ `sanguo`（三国演义）/ `silu`（丝路商队）/ `zhenghe`（郑和下西洋）/ `shuihu`（水浒传）。写错会被参数校验直接拒掉（退出码 2）。
+> `--story` 的合法取值只有 7 个已上线 id：`xiyou`（西游记，默认）/ `sanguo`（三国演义）/ `silu`（丝路商队）/ `zhenghe`（郑和下西洋）/ `shuihu`（水浒传）/ `nuozha`（哪吒闹海）/ `fengshen`（封神演义）。写错会被参数校验直接拒掉（退出码 2）。
+>
+> `--subject` 的合法取值只有 3 个已上线 id：`math`（数学，默认）/ `chinese`（语文）/ `english`（英语）。**非数学学科没有故事线关卡**，必须配合 `--kp` 或 `--skill` 使用。
 
 | 用户意图 | 命令 | 是否交互 |
 | --- | --- | --- |
 | 「有哪些故事线 / 哪条解锁了 / 进度到哪了」 | `python <INVOKE> stories` | 一次性输出 |
-| 「五条线有哪些关」（总览） | `python <INVOKE> stages` | 一次性输出 |
+| 「七条线有哪些关」（总览） | `python <INVOKE> stages` | 一次性输出 |
 | 「三国演义的 9 关是什么 / 哪关能玩」 | `python <INVOKE> stages --story sanguo` | 一次性输出 |
 | 「出一道第 3 关第 2 难的题」（指定关卡-难度） | `python <INVOKE> play --level 3-2 --seed <seed>` | **需 stdin**（等答案） |
 | 「出一道三国演义的题」 | `python <INVOKE> play --story sanguo --level sanguo-3-2 --seed <seed>` | **需 stdin** |
 | 「四年级出 5 道」 | `python <INVOKE> play --grade 4 --count 5 --seed <seed>` | **需 stdin**（每道题各要一次输入） |
 | 「出几道元角分的题」 | `python <INVOKE> play --kp g3_money --count 1 --seed <seed>` | **需 stdin** |
+| 「出一道哪吒闹海的题」 | `python <INVOKE> play --story nuozha --level nuozha-3-2 --seed <seed>` | **需 stdin** |
+| 「出一道封神演义的题」 | `python <INVOKE> play --story fengshen --level fengshen-9-3 --seed <seed>` | **需 stdin** |
+| 「出一道语文的古诗默写题」 | `python <INVOKE> play --subject chinese --kp c3_poem_spring --seed <seed>` | **需 stdin**（答案是文字） |
+| 「出一道语文的字词辨析题」 | `python <INVOKE> play --subject chinese --kp c5_word_idiom --skill word_order --seed <seed>` | **需 stdin**（答案是文字） |
+| 「出一道英语单词拼写题」 | `python <INVOKE> play --subject english --kp e3_spell_fruit --seed <seed>` | **需 stdin**（答案是英文单词） |
 | 「我要闯第 3 关」（计时 / 评品阶 / 收角色卡） | `python <INVOKE> play --level 3` | **强交互**：逐题计时，绝不能代跑 |
 | 「三国演义第 2 关闯一下」 | `python <INVOKE> play --story sanguo --stage 2` | **强交互** |
 | 「看看角色图鉴 / 收集了几个」 | `python <INVOKE> characters --story xiyou` | 一次性输出 |
@@ -97,6 +104,16 @@ python <INVOKE> doctor
 | 「环境自检 / 能连上吗」 | `python <INVOKE> doctor` | 一次性输出 |
 | 「抓一下最新数据」 | `python <INVOKE> data --fetch` | 一次性输出（写缓存，可能较慢） |
 | 「现在用的是实时还是缓存数据」 | `python <INVOKE> data --status` | 一次性输出 |
+
+**语文 / 英语怎么判分**：这两科没有数值答案，`verify.check_answer` 走文本分支——
+归一化（NFKC→小写→空白折叠→去首尾标点）后与「参考答案 + 显式同义表 `accept`」做集合命中，
+**不做编辑距离模糊匹配**（小学拼写题的考点就是精确拼写）。所以孩子写 `Monday` / `monday` 都算对，
+但 `apply` 代替 `apple` 一定判错。反馈时直接把用户输入原样喂给 `play` 的标准输入即可。
+
+**语文 / 英语为什么没有 `--story`**：故事线是「九关八十一难」的叙事外壳，只服务数学题库；
+语文 / 英语没有关卡数据，出题按「学科 + 知识点 + skill」直接派发，题型模块在
+`scripts/subjects/<学科>/templates.py`。这也**证明了两件事**：加一条故事线不用改代码，
+加一个学科也不用改代码。
 
 **「需 stdin」是什么意思**：`play` 用 `input()` 逐题等作答，等你把一行文本喂给它的标准输入。不给输入，它会打印完题面就退出（这正是「只出题、不判题」的正确用法）。**「强交互」的闯关模式不要代跑**：它有 600 秒/题上限与计时评分，代跑出来的品阶是假的；应把命令原样交给用户在自己终端里跑。
 

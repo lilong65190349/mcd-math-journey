@@ -28,16 +28,18 @@ import random
 import re
 import sys
 import time
+import unicodedata
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from math import gcd
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 if __package__ in (None, ""):  # pragma: no cover - 脚本运行路径
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import data_source  # noqa: E402
+import subjects  # noqa: E402
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 CURRICULUM_PATH: Path = PROJECT_ROOT / "data" / "curriculum.json"
@@ -46,6 +48,16 @@ REGISTRY_PATH: Path = STORYLINES_DIR / "index.json"
 
 DEFAULT_STORY: str = "xiyou"
 """未指定 ``--story`` 时使用的故事线（与改造前行为一致）。"""
+
+MATH_SUBJECT: str = "math"
+"""数学学科 id。它是改造前的唯一学科，也是历史上所有关卡数据的归属学科。"""
+
+_SUBJECT_ERRORS: List[str] = []
+"""``kp_index()`` 合并多学科图谱时被跳过的学科（记录原因，供 selfcheck 硬断言）。
+
+运行期降级（一个学科图谱坏掉不拖垮其它学科）与**静默降级**是两件事：
+这里把失败原因记下来，由 ``selfcheck`` 断言它必须为空，所以「降级」是可观测的。
+"""
 
 CARE_NOTE: str = "适量、均衡搭配，不浪费。"
 """每道题讲解结尾的统一轻提示（合规要求）。"""
@@ -332,9 +344,42 @@ def reset_state() -> None:
     _STATE = None
 
 
-def load_curriculum() -> Dict[str, Any]:
-    """读取知识点图谱。"""
-    with CURRICULUM_PATH.open("r", encoding="utf-8") as handle:
+def curriculum_path(subject: Optional[str] = None) -> Path:
+    """返回某学科知识点图谱的文件路径。
+
+    数学沿用历史路径 ``data/curriculum.json``（不搬文件，见设计文档决策 2），
+    其他学科由学科注册表 ``data/subjects/index.json`` 指路到 ``data/curriculum/<sid>.json``。
+
+    Args:
+        subject: 学科 id；``None`` 表示数学。
+
+    Returns:
+        图谱文件绝对路径。
+
+    Raises:
+        KeyError: 未注册的学科。
+    """
+    sid = str(subject or MATH_SUBJECT)
+    if sid == MATH_SUBJECT:
+        return CURRICULUM_PATH
+    return subjects.curriculum_path(sid)
+
+
+def load_curriculum(subject: Optional[str] = None) -> Dict[str, Any]:
+    """读取某学科的知识点图谱。
+
+    Args:
+        subject: 学科 id；``None`` 表示数学。
+
+    Returns:
+        图谱字典（``{"version": ..., "grades": [{"grade": 3, "kps": [...]}, ...]}``）。
+
+    Raises:
+        KeyError: 未注册的学科。
+        OSError: 图谱文件不存在。
+    """
+    path = curriculum_path(subject)
+    with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
 
 
@@ -452,19 +497,94 @@ def storyline_name(story_id: Optional[str] = None) -> str:
         return sid
 
 
-def kp_index() -> Dict[str, Dict[str, Any]]:
-    """返回 ``{kp_id: {"id","name","desc","grade"}}`` 索引。"""
+def kp_index(subject: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    """返回 ``{kp_id: {"id","name","desc","grade","subject","skill"}}`` 索引。
+
+    Args:
+        subject: 只取某学科的 kp；``None`` 表示合并**全部已上线学科**的图谱。
+
+    Returns:
+        kp 索引。``subject`` 是 kp 所属学科，``skill`` 是它的派发技能名。
+
+    Raises:
+        ValueError: 不同学科之间出现重复的 ``kp_id``
+            （学科前缀必须天然不冲突：数学 ``g*_*``、语文 ``c*_*``、英语 ``e*_*``）。
+    """
+    if subject is not None:
+        targets = [str(subject)]
+    else:
+        targets = list(subjects.subject_ids(only_available=True))
+        if MATH_SUBJECT not in targets:
+            targets.insert(0, MATH_SUBJECT)
+
     index: Dict[str, Dict[str, Any]] = {}
-    for grade_block in load_curriculum().get("grades", []):
-        grade = int(grade_block.get("grade", 0))
-        for kp in grade_block.get("kps", []):
-            index[str(kp.get("id"))] = {
-                "id": str(kp.get("id")),
-                "name": str(kp.get("name")),
-                "desc": str(kp.get("desc")),
-                "grade": grade,
-            }
+    _SUBJECT_ERRORS.clear()
+    for sid in targets:
+        try:
+            payload = load_curriculum(sid)
+        except (KeyError, OSError, json.JSONDecodeError) as exc:
+            # 运行期降级：一个学科图谱坏掉不拖垮其它学科。
+            # 但**不静默**——记进 _SUBJECT_ERRORS，selfcheck 断言它必须为空。
+            _SUBJECT_ERRORS.append(f"{sid}：{type(exc).__name__} {exc}")
+            continue
+        for grade_block in payload.get("grades", []):
+            grade = int(grade_block.get("grade", 0))
+            for kp in grade_block.get("kps", []):
+                kp_id = str(kp.get("id"))
+                if kp_id in index:
+                    raise ValueError(
+                        f"知识点 id 重复：{kp_id!r}（{index[kp_id]['subject']} 与 {sid} 各有一份）"
+                    )
+                index[kp_id] = {
+                    "id": kp_id,
+                    "name": str(kp.get("name")),
+                    "desc": str(kp.get("desc")),
+                    "grade": grade,
+                    "subject": str(kp.get("subject") or sid),
+                    "skill": str(kp.get("skill") or ""),
+                }
     return index
+
+
+def subject_errors() -> List[str]:
+    """返回上一次 :func:`kp_index` 合并时被跳过的学科及原因（自检用）。"""
+    return list(_SUBJECT_ERRORS)
+
+
+def subject_of(kp: Any) -> str:
+    """返回某个知识点所属的学科 id。
+
+    Args:
+        kp: 可以是 ``kp_index()`` 的一项（``dict``），也可以是 ``kp_id`` 字符串。
+
+    Returns:
+        学科 id；取不到时退化为 ``"math"``（历史数据的默认归属）。
+    """
+    if isinstance(kp, dict):
+        return str(kp.get("subject") or MATH_SUBJECT)
+    try:
+        mapping = kp_index()
+    except (KeyError, OSError, ValueError, json.JSONDecodeError):  # pragma: no cover - 图谱损坏
+        return MATH_SUBJECT
+    return str((mapping.get(str(kp)) or {}).get("subject") or MATH_SUBJECT)
+
+
+def skill_of_kp(kp: Any) -> str:
+    """返回某个知识点声明的 ``skill``（三级派发里的**第三级**来源）。
+
+    Args:
+        kp: ``kp_index()`` 的一项（``dict``）或 ``kp_id`` 字符串。
+
+    Returns:
+        技能名；取不到时返回空串。
+    """
+    if isinstance(kp, dict):
+        return str(kp.get("skill") or "")
+    try:
+        mapping = kp_index()
+    except (KeyError, OSError, ValueError, json.JSONDecodeError):  # pragma: no cover - 图谱损坏
+        return ""
+    return str((mapping.get(str(kp)) or {}).get("skill") or "")
 
 
 def list_stages(story: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -475,6 +595,7 @@ def list_stages(story: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     data = load_storyline(story)
     sid = str(data.get("id"))
+    kp_map = kp_index()
     stages: List[Dict[str, Any]] = []
     for stage in data.get("stages", []):
         stages.append(
@@ -487,14 +608,16 @@ def list_stages(story: Optional[str] = None) -> List[Dict[str, Any]]:
                 "theme": str(stage.get("theme", "")),
                 "role_focus": str(stage.get("role_focus", "")),
                 "grade_hint": int(stage.get("grade_hint", 0)),
-                "op_family": str(stage.get("op_family", "")),
+                # ``op_family`` 保留（向后兼容），但取值改为「解析后的 skill」：
+                # 新故事线不写 op_family，靠 kp.skill 也能显示出一致的技能名。
+                "op_family": resolve_skill_for_stage(stage, kp_map),
                 "level_count": len(stage.get("levels", [])),
                 "levels": [
                     {
                         "level_id": str(level.get("level_id")),
                         "kp_id": str(level.get("kp_id")),
                         "brief": str(level.get("brief")),
-                        "data_hint": str(level.get("data_hint")),
+                        "data_hint": str(level.get("data_hint") or ""),
                     }
                     for level in stage.get("levels", [])
                 ],
@@ -610,7 +733,12 @@ def _ctx(level: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
     tail = level_id.split("-")[-1]
     difficulty = int(tail) if tail.isdigit() else 1
     story_id = str(level.get("story") or default_story())
-    roles = load_storyline(story_id).get("roles") or {}
+    # 无故事线路径（语文 / 英语）没有对应的故事线 JSON 可读，
+    # 此时 ``roles`` 退化为空、``role`` 落到下面的通用默认值「小学者」。
+    try:
+        roles = load_storyline(story_id).get("roles") or {}
+    except (KeyError, OSError, json.JSONDecodeError):
+        roles = {}
     return {
         "state": state,
         "foods": state["foods"],
@@ -1447,6 +1575,133 @@ _TEMPLATES = {
     8: _stage_8_average,
     9: _stage_9_discount,
 }
+"""**历史派发表**：按「第几关」索引，已废弃（保留只为向后兼容与等价性回归）。
+
+新代码一律走 :func:`get_template`；这个字典不再被 :func:`generate` 读取。
+"""
+
+_MATH_TEMPLATES: Dict[str, Callable[..., Dict[str, Any]]] = {
+    "add": _stage_1_add,
+    "sub": _stage_2_sub,
+    "mul": _stage_3_mul,
+    "div": _stage_4_div,
+    "decimal": _stage_5_unit,
+    "time": _stage_6_time,
+    "percent": _stage_7_fraction_percent,
+    "average": _stage_8_average,
+    "discount": _stage_9_discount,
+}
+"""**数学学科的派发表**：按 ``skill`` 名索引。
+
+它与 ``_TEMPLATES`` 是同一批函数对象（键不同、值相同），这是「换派发键零行为变更」
+的实现基础：``_MATH_TEMPLATES[stage.op_family] is _TEMPLATES[stage]`` 对 9 个关卡全部成立。
+
+学科注册表 ``data/subjects/index.json`` 里 math 的 ``templates`` 指向本模块、
+``templatesAttr`` 指向 ``_MATH_TEMPLATES`` —— 所以数学不需要搬文件到
+``scripts/subjects/math/templates.py``，却与新学科走完全相同的加载路径。
+"""
+
+
+# ---------------------------------------------------------------------------
+# 派发键解析（**本模块最关键的三个函数**）
+# ---------------------------------------------------------------------------
+
+
+def skill_of(
+    level: Dict[str, Any], stage: Dict[str, Any], kp: Optional[Dict[str, Any]]
+) -> str:
+    """**三级 fallback** 解析一难该用哪个模板。
+
+    顺序（**不得更改**）：``level.skill`` → ``stage.op_family`` → ``kp.skill``。
+
+    为什么必须有中间一级：实测 ``g6_percent`` 一共被 **60 个**关卡位引用——
+    第 7 关（``op_family=percent``）15 个、第 9 关（``op_family=discount``）45 个。
+    若只看 ``kp.skill``（= ``percent``），那 **45 个**第 9 关关卡位会**静默错派**成百分数模板。
+    注意区分两个数字：**引用 60、错派 45**——第 7 关那 15 个本来就该走 percent，不算错派。
+
+    为什么新故事线要落到第三级：新线不写 ``op_family``，靠 ``kp.skill`` 就能出题，
+    等于用数据证明「加一条故事线不需要在关卡里携带任何学科信息」。
+
+    Args:
+        level: 一难的 dict（可能含 ``skill``）。
+        stage: 它所属关的 dict（可能含 ``op_family``）。
+        kp: 该难 ``kp_id`` 对应的知识点 dict（可能含 ``skill``），可为 ``None``。
+
+    Returns:
+        技能名；三级全空时返回空串（随后 :func:`get_template` 会抛 ``KeyError``）。
+    """
+    return (
+        str(level.get("skill") or "")
+        or str((stage or {}).get("op_family") or "")
+        or str((kp or {}).get("skill") or "")
+    )
+
+
+def resolve_dispatch(
+    level: Dict[str, Any],
+    stage: Dict[str, Any],
+    kp_map: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Tuple[str, str]:
+    """解析一难的 ``(学科, 技能)`` 派发键。
+
+    Args:
+        level: 一难的 dict（读 ``kp_id`` / 可选 ``skill``）。
+        stage: 它所属关的 dict（读 ``op_family``）。
+        kp_map: ``kp_index()`` 的结果；``None`` 时内部现取（调用方循环里应传入以免重复读盘）。
+
+    Returns:
+        ``(subject, skill)``。
+    """
+    mapping = kp_map if kp_map is not None else kp_index()
+    kp = mapping.get(str(level.get("kp_id"))) or {}
+    return str(kp.get("subject") or MATH_SUBJECT), skill_of(level, stage, kp)
+
+
+def get_template(subject: str, skill: str) -> Callable[..., Dict[str, Any]]:
+    """按 ``(学科, 技能)`` 取模板函数（**取不到抛 KeyError，绝不兜底**）。
+
+    这是防止「新学科 / 新故事线配错 skill 却静默跑出数学题」的护栏：
+    兜底成 ``_stage_1_add`` 会让错配变成「一关全错的加法题」，而且自洽到自检抓不到。
+
+    Args:
+        subject: 学科 id。
+        skill: 技能名。
+
+    Returns:
+        模板函数。
+
+    Raises:
+        KeyError: 该学科没有这个 skill 的模板。
+    """
+    return subjects.get_template(str(subject), str(skill))
+
+
+def resolve_skill_for_stage(
+    stage: Dict[str, Any], kp_map: Optional[Dict[str, Dict[str, Any]]] = None
+) -> str:
+    """某关「解析后的 skill」（CLI ``stages`` 输出与自检用）。
+
+    优先用 ``op_family``；没有时取该关多数 level 的 ``kp.skill``（新故事线走这条）。
+
+    Args:
+        stage: 一关的 dict。
+        kp_map: ``kp_index()`` 的结果，可为 ``None``。
+
+    Returns:
+        技能名；解析不出时返回空串。
+    """
+    declared = str(stage.get("op_family") or "")
+    if declared:
+        return declared
+    mapping = kp_map if kp_map is not None else kp_index()
+    counts: Dict[str, int] = {}
+    for level in stage.get("levels") or []:
+        skill = skill_of(level, stage, mapping.get(str(level.get("kp_id"))) or {})
+        if skill:
+            counts[skill] = counts.get(skill, 0) + 1
+    if not counts:
+        return ""
+    return max(counts.items(), key=lambda item: (item[1], item[0]))[0]
 
 
 # ---------------------------------------------------------------------------
@@ -1454,6 +1709,95 @@ _TEMPLATES = {
 # ---------------------------------------------------------------------------
 
 _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
+
+TEXT_ANSWER_TYPES: Tuple[str, ...] = ("text", "enum")
+"""走文本比对（而非数值比对）的答案类型。
+
+语文 / 英语题用这两种类型：答案是一段文字或一个选项值，没有「数值等价」的概念。
+"""
+
+_TEXT_STRIP_CHARS: str = " \t\r\n。，、.。！？!?,;；:：'\"“”‘’《》（）()【】[]"
+"""文本答案归一化时要去掉的首尾标点与引号。"""
+
+TEXT_NOISE_RE = re.compile(r"[，,。.、；;：:！!？?…·~～「」『』（）()《》【】\[\]\"'“”‘’\s\u3000\-—_]")
+"""文本答案的**比对噪声**：全部中英文标点 + 全部空白。
+
+为什么比对时要整个抹掉而不是「标点映射成空格」：
+「标点」与「空白」是两类 token，互相映射会漏掉「既有标点又有空格」的写法
+（``"早， 忙"`` = 标点 + 空格两个 token，而答案只有标点一个 token）。
+统一抹掉之后，``标点`` / ``空一个格`` / ``空两个格`` / ``标点加空格`` /
+``标点加两个空格`` 全部落到同一个 canonical 形式，规则只有一条、不会自相矛盾。
+"""
+
+
+def normalize_text(value: Any) -> str:
+    """把文本答案归一化成可严格比较的形式（**展示用**，保留标点与空格结构）。
+
+    管线（与 :func:`verify.normalize_text` **同一实现**，此处是唯一真相源）::
+
+        NFKC（全角→半角、兼容字符归一）→ strip → lower → 连续空白折叠成单空格 → 去首尾标点引号
+
+    注意：**判分与防泄露都不用这个函数的结果做最终比较**，它们用
+    :func:`canonical_text`。``normalize_text`` 只负责「人能读的、结构还在」的那一层，
+    例如错因诊断里比较字数、以及把用户输入原样回报给调用方。
+
+    **不做编辑距离模糊匹配。** 小学拼写题的考点就是精确拼写，容忍 1 个字符错会把
+    「正确答错」判成对，比判错更糟：它破坏了这道题的测量功能。同义/变体由内容侧
+    在 ``accept`` 里显式登记，不做猜测。
+
+    Args:
+        value: 原始文本（``None`` 视为空串）。
+
+    Returns:
+        归一化后的文本。
+    """
+    text = unicodedata.normalize("NFKC", str(value if value is not None else ""))
+    text = text.strip().lower()
+    text = re.sub(r"\s+", " ", text)
+    return text.strip(_TEXT_STRIP_CHARS)
+
+
+def canonical_text(value: Any) -> str:
+    """文本答案的**最终比对形式**：``normalize_text`` 之后再抹掉全部标点与空白。
+
+    这是「题干说标点可以不写全，判分就必须真的做到」的唯一实现点。
+    判分（:func:`verify._check_text_answer`）与防泄露（:func:`_hint_leaks`）
+    **必须用同一个函数**——两边各用一套归一化，就会出现
+    「判分判对了、防泄露却说没泄露」这种自相矛盾（本项目真踩过这个坑）。
+
+    抹掉标点空白不会放宽到「错字也能过」：**一个汉字/字母都没动**，
+    ``"放纸鸢"`` 写成 ``"放风筝"`` 依旧判错。
+
+    Args:
+        value: 原始文本。
+
+    Returns:
+        只含字母、数字与汉字的 canonical 串。
+    """
+    return TEXT_NOISE_RE.sub("", normalize_text(value))
+
+
+def _text_targets(answer: Any, accept: Optional[List[Any]] = None) -> List[str]:
+    """把文本答案展开成「所有可接受的写法」的 canonical 集合。
+
+    Args:
+        answer: 参考答案。
+        accept: 追加的可接受写法（同义表 / 变体 / 大小写变体）。
+
+    Returns:
+        去重后的 canonical 字符串列表；canonical 后长度 < 2 的不参与（防单字误判）。
+    """
+    candidates: List[Any] = [answer]
+    candidates.extend(list(accept or []))
+    targets: List[str] = []
+    for item in candidates:
+        normalized = canonical_text(item)
+        if len(normalized) < 2:
+            continue
+        if normalized not in targets:
+            targets.append(normalized)
+    return targets
+
 
 SOURCE_TABLE_LABELS: Dict[str, str] = {
     "mcp": "实时数据",
@@ -1538,13 +1882,18 @@ def _answer_targets(answer: Any, answer_type: str = "number") -> List[Decimal]:
     百分数题同时接受 ``19.6`` 与 ``0.196`` 两种写法（与 :func:`verify.check_answer`
     的判定口径保持一致），否则 ``_hint_leaks("0.196", "19.6")`` 会漏判。
 
+    文本类型（``text`` / ``enum``）**没有数值等价**，因此返回空列表；
+    它们的防泄露走 :func:`_text_targets`。
+
     Args:
         answer: 题目答案。
-        answer_type: ``"number"`` 或 ``"percent"``。
+        answer_type: ``"number"`` / ``"percent"`` / ``"fraction"`` / ``"text"`` / ``"enum"``。
 
     Returns:
         需要比对的目标数值列表。
     """
+    if str(answer_type) in TEXT_ANSWER_TYPES:
+        return []
     expected = _answer_value(answer)
     if expected is None:
         return []
@@ -1554,21 +1903,40 @@ def _answer_targets(answer: Any, answer_type: str = "number") -> List[Decimal]:
     return targets
 
 
-def _hint_leaks(hint: str, answer: Any, answer_type: str = "number") -> bool:
+def _hint_leaks(
+    hint: str, answer: Any, answer_type: str = "number", accept: Optional[List[Any]] = None
+) -> bool:
     """判断一条提示是否直接报出了答案。
 
-    只要提示里出现与答案数值相同的数字（容差 0.01），就认为这条提示把答案说破了：
-    孩子完全可以照抄那个数字。百分数题会把 ``19.6`` 与 ``0.196`` 两种写法都视为等同，
-    千分位写法（``1,234.5`` / ``1 234.5``）也会被归一化后再比对。
+    数值题：只要提示里出现与答案数值相同的数字（容差 0.01），就认为说破了。
+    百分数题把 ``19.6`` 与 ``0.196`` 视为等同，千分位写法（``1,234.5``）先归一化再比。
+
+    文本题（``text`` / ``enum``）：**与判分用同一个** :func:`canonical_text` 归一化后
+    做**子串包含**判断——提示里出现完整答案字符串即视为泄露。
+
+    这里用 canonical 而不是 :func:`normalize_text` 是刻意的：判分已经把标点与空白
+    抹掉了，如果防泄露还留着标点，就会出现「提示里把答案写成 ``白日，依山尽``
+    算没泄露、但孩子照抄能判对」的缝。两处口径必须同源。
+
+    **这正是原先会让防泄露检查彻底失效的地方**：
+    ``_answer_targets("白日依山尽", "text")`` 曾返回 ``[]``，于是即使提示明写答案
+    ``_hint_leaks`` 也返回 ``False``，「提示不泄露答案」变成装饰且不报错。
 
     Args:
         hint: 提示文本。
         answer: 题目答案。
-        answer_type: ``"number"`` 或 ``"percent"``。
+        answer_type: 答案类型。
+        accept: 文本答案的可接受写法（仅 ``text`` / ``enum`` 使用）。
 
     Returns:
         ``True`` 表示泄露。
     """
+    if str(answer_type) in TEXT_ANSWER_TYPES:
+        text = canonical_text(hint)
+        if not text:
+            return False
+        return any(target in text for target in _text_targets(answer, accept))
+
     targets = _answer_targets(answer, answer_type)
     if not targets:
         return False
@@ -1584,6 +1952,33 @@ def _blank_numbers(hint: str) -> str:
     return _NUMBER_RE.sub("□", str(hint))
 
 
+def _blank_leaked_text(hint: str, answer: Any, accept: Optional[List[Any]] = None) -> str:
+    """把提示里出现的答案字符串替换成空格框（保留其余信息）。
+
+    逐字符定位会丢掉大小写与全角半角的原始写法，所以这里用「按原样切分」的做法：
+    对每个可接受写法的**原文**做一次大小写不敏感替换。
+
+    Args:
+        hint: 提示文本。
+        answer: 题目答案。
+        accept: 追加的可接受写法。
+
+    Returns:
+        抹掉答案后的提示文本。
+    """
+    text = str(hint)
+    candidates: List[str] = [str(answer if answer is not None else "")]
+    candidates.extend(str(item) for item in (accept or []))
+    for candidate in candidates:
+        # 用 canonical 判「够不够长才算答案」，与 _text_targets 同口径：
+        # 否则一个「3 个字符但含标点」的候选在这里被跳过、在比对里却生效，两边又漂开。
+        if len(canonical_text(candidate)) < 2:
+            continue
+        pattern = re.compile(re.escape(candidate.strip()), re.IGNORECASE)
+        text = pattern.sub("□" * min(len(candidate.strip()), 4), text)
+    return text
+
+
 def _blank_leaked_numbers(hint: str, answer: Any, answer_type: str = "number") -> str:
     """只把「等于答案」的那个数字换成空格框，保留其余信息。
 
@@ -1591,14 +1986,18 @@ def _blank_leaked_numbers(hint: str, answer: Any, answer_type: str = "number") -
     只会变成 ``（5 × □）÷ 500 × 100% = □%``，5 / 500 / 100 这些有用条件不会被抹掉；
     券名 ``满20元减10元`` 在答案为 10 时只变成 ``满20元减□元``，不会出现「整条提示全是 □」的观感。
 
+    文本答案没有这个问题——直接交给 :func:`_blank_leaked_text`。
+
     Args:
         hint: 提示文本。
         answer: 题目答案。
-        answer_type: ``"number"`` 或 ``"percent"``。
+        answer_type: 答案类型。
 
     Returns:
-        只抹掉泄露数值的提示文本。
+        只抹掉泄露内容的提示文本。
     """
+    if str(answer_type) in TEXT_ANSWER_TYPES:
+        return _blank_leaked_text(hint, answer)
     targets = _answer_targets(answer, answer_type)
     if not targets:
         return str(hint)
@@ -1617,12 +2016,20 @@ def _blank_leaked_numbers(hint: str, answer: Any, answer_type: str = "number") -
     return _NUMBER_RE.sub(_replace, text)
 
 
-def _sanitize_hints(hints: List[str], answer: Any, answer_type: str = "number") -> List[str]:
-    """把泄露答案的提示改写为「只抹命中数字」的版本（尽量保留提示信息量）。"""
+def _sanitize_hints(
+    hints: List[str],
+    answer: Any,
+    answer_type: str = "number",
+    accept: Optional[List[Any]] = None,
+) -> List[str]:
+    """把泄露答案的提示改写为「只抹命中内容」的版本（尽量保留提示信息量）。"""
     result: List[str] = []
     for hint in hints:
-        if _hint_leaks(hint, answer, answer_type):
-            result.append(_blank_leaked_numbers(hint, answer, answer_type))
+        if _hint_leaks(hint, answer, answer_type, accept):
+            if str(answer_type) in TEXT_ANSWER_TYPES:
+                result.append(_blank_leaked_text(hint, answer, accept))
+            else:
+                result.append(_blank_leaked_numbers(hint, answer, answer_type))
         else:
             result.append(hint)
     return result
@@ -1639,6 +2046,8 @@ def generate(
     grade: Optional[int] = None,
     salt: Any = None,
     story: Optional[str] = None,
+    subject: Optional[str] = None,
+    skill: Optional[str] = None,
 ) -> Dict[str, Any]:
     """生成一道题。
 
@@ -1648,13 +2057,17 @@ def generate(
         grade: 按年级筛选（3-6）；口径是**知识点所属年级**，与返回值的 ``grade`` 字段同源。
         salt: 随机种子；给定相同 ``salt`` 与相同参数可复现同一道题。
         story: 故事线 id，默认 ``xiyou``。只影响关名 / 主题 / 角色 / brief 文案，
-            9 个数学模板完全复用，数字与算式与故事线无关。
+            题型模板完全复用，数字与算式与故事线无关。
+        subject: 学科 id。非数学学科（语文 / 英语）**没有故事线**，走「无故事线路径」：
+            直接按 ``kp_id`` 的学科 + ``skill`` 出题，``role`` / ``scene`` 取学科默认值。
+        skill: 显式指定技能名（覆盖三级 fallback）；仅无故事线路径与调试时使用。
 
     Returns:
         题目字典::
 
             {
               "story_id": "xiyou", "story_name": "西游记",
+              "subject": "math", "skill": "mul",
               "level_id": "3-2", "stage": 3, "stage_name": "八戒买饼",
               "kp_id": "g3_mul_basic", "kp_name": "两位数乘一位数",
               "grade": 3, "stage_grade_hint": 3, "role": "猪八戒",
@@ -1669,11 +2082,35 @@ def generate(
         ``grade`` 是知识点所属年级（权威展示口径）；``stage_grade_hint`` 是该关的难度定位，
         两者可能不同（同一关的 9 难可以跨年级）。``data_table.title`` 的后缀由
         ``data_source`` 决定：实时数据 / 缓存数据 YYYY-MM-DD / 示例数据。
+        ``subject`` / ``skill`` 是派发元信息（不进 ``render_text``，因此不影响 DOC_SYNC 的
+        五段示例比对），无表格题型（如古诗填空）的 ``data_table`` 是空结构。
 
     Raises:
         ValueError: 筛选条件下没有任何关卡，或指定的故事线尚未上线。
-        KeyError: 指定的 ``level_id`` 不存在。
+        KeyError: 指定的 ``level_id`` 不存在，或 ``(subject, skill)`` 没有对应模板。
     """
+    kp_map = kp_index()
+
+    # 无故事线路径：非数学学科没有「九关八十一难」的叙事外壳，直接按知识点出题。
+    # 判据是「显式给了非数学学科，且没有指定任何故事线/关卡」——
+    # 这样既支持 generate(subject="chinese", kp_id=...)，也不会误伤
+    # generate(salt="demo")（subject=None → 走故事线）与 generate(story="sanguo")。
+    want_subject = str(subject or "")
+    if (
+        level_id is None
+        and story is None
+        and want_subject
+        and want_subject != MATH_SUBJECT
+    ):
+        return _generate_from_subject(
+            kp_id=kp_id,
+            grade=grade,
+            salt=salt,
+            subject=want_subject,
+            skill=skill,
+            kp_map=kp_map,
+        )
+
     if story is not None and not is_available(story):
         raise ValueError(f"故事线「{storyline_name(story)}」（{story}）尚未上线，请换一条线。")
 
@@ -1694,7 +2131,6 @@ def generate(
             if str(level.get("kp_id")) == str(kp_id)
         ]
 
-    kp_map = kp_index()
     if grade is not None:
         # 年级口径：一律以「知识点所属年级」为准，筛选口径与展示字段完全同源，
         # 保证 play --grade 4 输出的每一题都真实标注「4 年级」。
@@ -1731,9 +2167,14 @@ def generate(
         }
     )
 
-    template = _TEMPLATES.get(int(stage.get("stage", 0)))
-    if template is None:  # pragma: no cover - 配置异常兜底
-        template = _stage_1_add
+    # 派发键：level → stage → kp 三级 fallback（绝不可以只看 kp.skill，
+    # 否则 g6_percent 会让第 9 关 45 个关卡位静默错派成百分数模板）。
+    dispatch_subject, dispatch_skill = resolve_dispatch(level, stage, kp_map)
+    if skill:
+        dispatch_skill = str(skill)
+    if want_subject:
+        dispatch_subject = want_subject
+    template = get_template(dispatch_subject, dispatch_skill)
 
     # 同一关卡换一组数据重抽，直到三级提示都不泄露答案；
     # 仍不行时把泄露那条提示里的数值改成空格框（结构保留、答案不泄露）。
@@ -1750,27 +2191,83 @@ def generate(
         body = template(ctx)
         hints = list(body.get("hints") or [])
         answer_type = str(body.get("answer_type") or "number")
-        if not any(_hint_leaks(hint, body.get("answer"), answer_type) for hint in hints):
+        accept = list(body.get("accept") or [])
+        if not any(_hint_leaks(hint, body.get("answer"), answer_type, accept) for hint in hints):
             break
     else:
         body["hints"] = _sanitize_hints(
             list(body.get("hints") or []),
             body.get("answer"),
             str(body.get("answer_type") or "number"),
+            list(body.get("accept") or []),
         )
 
-    kp = kp_map.get(
-        str(merged.get("kp_id")),
-        {"id": str(merged.get("kp_id")), "name": "综合应用", "grade": int(stage.get("grade_hint", 0))},
+    return _assemble_problem(
+        body=body,
+        ctx=ctx,
+        stage=stage,
+        level=merged,
+        kp_map=kp_map,
+        story_data=story_data,
+        sid=sid,
+        subject=dispatch_subject,
+        skill=dispatch_skill,
     )
-    source_key = str(body.pop("primary_source", "nutrition"))
+
+
+def _assemble_problem(
+    body: Dict[str, Any],
+    ctx: Dict[str, Any],
+    stage: Dict[str, Any],
+    level: Dict[str, Any],
+    kp_map: Dict[str, Dict[str, Any]],
+    story_data: Dict[str, Any],
+    sid: str,
+    subject: str,
+    skill: str,
+) -> Dict[str, Any]:
+    """把模板返回的 ``body`` 与上下文组装成对外的题目字典。
+
+    所有可选键都用 ``.get()`` 取：无表格题型（古诗填空、单词拼写）不给 ``data_table``，
+    早期实现用 ``dict(body["data_table"])`` 强取会在这些题上直接 KeyError。
+
+    Args:
+        body: 模板函数的返回值。
+        ctx: 模板上下文（读 ``source_meta`` / ``sources``）。
+        stage: 关卡 dict。
+        level: 合并后的 level dict。
+        kp_map: ``kp_index()`` 的结果。
+        story_data: 故事线（或学科默认值）dict，读 ``name``。
+        sid: 故事线 / 学科 id。
+        subject: 解析后的学科 id。
+        skill: 解析后的技能名。
+
+    Returns:
+        题目字典。
+    """
+    kp = kp_map.get(
+        str(level.get("kp_id")),
+        {
+            "id": str(level.get("kp_id") or ""),
+            "name": "综合应用",
+            "grade": int(stage.get("grade_hint", 0)),
+            "subject": subject,
+            "skill": skill,
+        },
+    )
+    source_key = str(body.get("primary_source") or "nutrition")
     # 数据级别与抓取时间都取自已加载的数据集元信息，和题目 dict 的 data_source 严格同源。
-    source_meta = ctx.get("source_meta", {}).get(source_key) or {}
-    source_value = str(source_meta.get("source") or ctx["sources"].get(source_key) or "sample")
+    source_meta = (ctx.get("source_meta") or {}).get(source_key) or {}
+    source_value = str(
+        source_meta.get("source") or (ctx.get("sources") or {}).get(source_key) or "sample"
+    )
     source_fetched = source_meta.get("fetched_at") or ""
 
-    data_table = dict(body["data_table"])
-    data_table["title"] = _table_title(str(data_table.get("title", "")), source_value, source_fetched)
+    data_table: Dict[str, Any] = dict(body.get("data_table") or {})
+    if data_table:
+        data_table["title"] = _table_title(
+            str(data_table.get("title", "")), source_value, source_fetched
+        )
 
     problem: Dict[str, Any] = {
         # 题材元信息：``story_id`` 是故事线 id，``story_name`` 是中文名。
@@ -1778,49 +2275,222 @@ def generate(
         # 为保持向后兼容不改变其含义，故事线标识改用 story_id。
         "story_id": sid,
         "story_name": str(story_data.get("name") or sid),
-        "level_id": str(merged.get("level_id")),
+        # 派发元信息：学科与技能。加这两个键不改变任何既有字段，
+        # ``project()`` 只挑它认识的键，所以演示页与 DOC_SYNC 均不受影响。
+        "subject": str(subject),
+        "skill": str(skill),
+        # skill 的中文显示名（来自学科注册表的 skillNames）。
+        # 界面上一律用它，不把 poem_fill / add 这类内部标识印给学生看。
+        "skill_name": subjects.skill_label(subject, skill),
+        "level_id": str(level.get("level_id") or ""),
         "stage": int(stage.get("stage", 0)),
         "stage_name": str(stage.get("name", "")),
         "kp_id": str(kp["id"]),
         "kp_name": str(kp["name"]),
         "grade": int(kp.get("grade") or stage.get("grade_hint", 3)),
         "stage_grade_hint": int(stage.get("grade_hint", 0)),
-        "role": body["role"],
-        "brief": str(merged.get("brief", "")),
-        "story": body["story"],
-        "question": body["question"],
+        "role": str(body.get("role") or "小学者"),
+        "brief": str(level.get("brief", "")),
+        "story": str(body.get("story") or ""),
+        "question": str(body.get("question") or ""),
         "data_table": data_table,
-        "answer_type": body["answer_type"],
-        "answer": body["answer"],
-        "unit": body["unit"],
-        "hints": list(body["hints"]),
-        "steps": list(body["steps"]),
-        "verify": dict(body["verify"]),
+        "answer_type": str(body.get("answer_type") or "number"),
+        "answer": body.get("answer"),
+        "accept": [str(item) for item in (body.get("accept") or [])],
+        "unit": str(body.get("unit") or ""),
+        "hints": list(body.get("hints") or []),
+        "steps": list(body.get("steps") or []),
+        "verify": dict(body.get("verify") or {}),
         "diagnosis": dict(body.get("diagnosis") or {}),
         "data_source": source_value,
     }
     return problem
 
 
+def _subject_stage(subject: str) -> Dict[str, Any]:
+    """给「无故事线路径」造一个关卡占位（``stage=0`` 表示不属于任何故事线关卡）。
+
+    Args:
+        subject: 学科 id。
+
+    Returns:
+        形如故事线 stage 的 dict，只保证被读取的键存在。
+    """
+    try:
+        name = str(subjects.subject_meta(subject).get("name") or subject)
+    except KeyError:  # pragma: no cover - 已在上游校验
+        name = subject
+    return {
+        "stage": 0,
+        "name": name,
+        "scene": "",
+        "theme": "",
+        "role_focus": "",
+        "grade_hint": 3,
+    }
+
+
+def _generate_from_subject(
+    kp_id: Optional[str],
+    grade: Optional[int],
+    salt: Any,
+    subject: str,
+    skill: Optional[str],
+    kp_map: Dict[str, Dict[str, Any]],
+) -> Dict[str, Any]:
+    """**无故事线路径**：按「学科 + 知识点 + skill」直接出题。
+
+    语文 / 英语没有九关八十一难，``role`` / ``scene`` / ``stage_name`` 取学科默认值，
+    ``stage`` 恒为 0（表示不挂在任何故事线关卡上）。
+
+    **``skill`` 必须参与反选知识点**（这是曾经的一个真缺陷）：早期实现只在
+    subject / kp_id / grade 三个维度筛候选 kp，漏掉了 ``skill``。于是
+    ``generate(subject="chinese", skill="word_order")`` 有一半概率先随机抽到一个
+    ``skill="poem_fill"`` 的知识点，再用显式 ``skill="word_order"`` 去取模板 ——
+    模板与该 kp 不匹配，直接 ``KeyError`` 崩在模板函数里（实测 30 次崩 14 次）。
+    因为 ``cli.py`` 把 ``--skill`` 暴露给了用户，这条路径用户真的会走到。
+
+    Args:
+        kp_id: 知识点 id；为 ``None`` 时在该学科内随机取一个可用 kp。
+        grade: 按知识点所属年级筛选。
+        salt: 随机种子。
+        subject: 学科 id（必为非数学，已由调用方判定）。
+        skill: 显式技能名；``None`` 时取 ``kp.skill``。**给定时会参与候选 kp 的筛选**。
+        kp_map: ``kp_index()`` 的结果。
+
+    Returns:
+        题目字典。
+
+    Raises:
+        KeyError: 该 ``(subject, skill)`` 根本没有模板（由 :func:`get_template` 抛出）。
+        ValueError: 按当前筛选条件没有任何知识点（含「该学科没有 kp 声明这个 skill」）。
+    """
+    base = [
+        dict(item)
+        for item in kp_map.values()
+        if str(item.get("subject")) == str(subject)
+        and (kp_id is None or str(item.get("id")) == str(kp_id))
+        and (grade is None or int(item.get("grade") or 0) == int(grade))
+    ]
+
+    # 显式给了 skill：先确认该学科真的有这个题型模板。
+    # 这一步放在筛 kp 之前，是为了让「skill 名写错」直接报「没有这个 skill 的模板」，
+    # 而不是被后面的「找不到知识点」掩盖掉真正的原因。
+    if skill:
+        get_template(subject, str(skill))
+
+    pool = [
+        item
+        for item in base
+        if skill is None or str(item.get("skill")) == str(skill)
+    ]
+    if not pool:
+        available_skills = sorted({str(item.get("skill")) for item in base if item.get("skill")})
+        if skill:
+            raise ValueError(
+                f"学科「{subject}」下没有任何知识点声明 skill={skill!r}"
+                f"（kp_id={kp_id!r}，grade={grade!r}）。"
+                f"该筛选范围内的可用 skill：{'、'.join(available_skills) or '（无）'}。"
+                "请去掉 --skill、或换一个 kp，不要指望模板替 kp 兜底。"
+            )
+        raise ValueError(
+            f"学科「{subject}」下找不到可用知识点"
+            f"（kp_id={kp_id!r}，grade={grade!r}）。"
+        )
+
+    base_seed = str(salt) if salt is not None else str(time.time_ns())
+    rng = random.Random(base_seed)
+    kp = rng.choice(pool) if kp_id is None else pool[0]
+
+    # 走到这里时，显式 skill 一定等于 pool 里每个 kp 的 skill（上一步已保证），
+    # 所以 dispatch_skill 与 kp 必然自洽，不会再出现「模板与 kp 不匹配」。
+    dispatch_skill = str(skill or kp.get("skill") or "")
+    template = get_template(subject, dispatch_skill)
+
+    stage = _subject_stage(subject)
+    level: Dict[str, Any] = {
+        # 无故事线的题没有 ``<stage>-<difficulty>`` 形式的关卡号，
+        # 用 ``<subject>-<kp_id>`` 作为稳定标识，便于错题本与 stats 归属。
+        "level_id": f"{subject}-{kp.get('id')}",
+        "kp_id": str(kp.get("id") or ""),
+        "brief": "",
+        "story": subject,
+        "story_name": stage["name"],
+        "stage": 0,
+        "stage_name": str(stage["name"]),
+        "scene": "",
+        "theme": "",
+        "role_focus": "",
+        "grade_hint": int(kp.get("grade") or 3),
+    }
+
+    ctx = _ctx(level, rng)
+    body: Dict[str, Any] = {}
+    for attempt in range(6):
+        attempt_rng = rng if attempt == 0 else random.Random(f"{base_seed}#{attempt}")
+        ctx = _ctx(level, attempt_rng)
+        body = template(ctx)
+        answer_type = str(body.get("answer_type") or "number")
+        accept = list(body.get("accept") or [])
+        hints = list(body.get("hints") or [])
+        if not any(_hint_leaks(hint, body.get("answer"), answer_type, accept) for hint in hints):
+            break
+    else:
+        body["hints"] = _sanitize_hints(
+            list(body.get("hints") or []),
+            body.get("answer"),
+            str(body.get("answer_type") or "number"),
+            list(body.get("accept") or []),
+        )
+
+    return _assemble_problem(
+        body=body,
+        ctx=ctx,
+        stage=stage,
+        level=level,
+        kp_map=kp_map,
+        story_data={"name": str(stage["name"])},
+        sid=str(subject),
+        subject=str(subject),
+        skill=dispatch_skill,
+    )
+
+
 def render_text(problem: Dict[str, Any]) -> str:
-    """把题目渲染成等宽文本（CLI 使用）。"""
+    """把题目渲染成等宽文本（CLI 使用）。
+
+    数值题型（数学）的输出格式是 ``README`` 第七节五段示例的比对基准，
+    **一个字都不能改**。无表格题型（语文 / 英语）只多一层判断：没有 ``data_table``
+    时不渲染表头与表体，避免文本输出里出现一张空表。
+    """
     lines: List[str] = []
-    lines.append(f"【第 {problem['level_id']} 难】{problem['stage_name']} · "
-                 f"第 {problem['stage']} 关")
-    if problem.get("story_name"):
+    stage_no = int(problem.get("stage") or 0)
+    if stage_no:
+        lines.append(
+            f"【第 {problem['level_id']} 难】{problem['stage_name']} · 第 {stage_no} 关"
+        )
+    else:
+        # 无故事线路径（语文 / 英语）：没有「第几关」的概念，改印学科与题型。
+        level_label = str(problem.get("level_id") or "")
+        subject_label = str(problem.get("story_name") or problem.get("subject") or "")
+        skill_label = str(problem.get("skill_name") or problem.get("skill") or "")
+        suffix = f" · {skill_label}" if skill_label else ""
+        lines.append(f"【{level_label}】{subject_label}{suffix}")
+    if problem.get("story_name") and stage_no:
         lines.append(f"故事线：{problem['story_name']}")
     lines.append(f"年级：{problem['grade']} 年级　知识点：{problem['kp_name']}（{problem['kp_id']}）")
     lines.append("-" * 60)
-    lines.append(problem["story"])
-    table = problem["data_table"]
+    lines.append(str(problem.get("story") or ""))
+    table = problem.get("data_table") or {}
+    if table.get("columns"):
+        lines.append("")
+        lines.append(f"{table['title']}：")
+        header = "  ".join(f"{col}" for col in table["columns"])
+        lines.append("  " + header)
+        for row in table["rows"]:
+            lines.append("  " + "  ".join(str(cell) for cell in row))
     lines.append("")
-    lines.append(f"{table['title']}：")
-    header = "  ".join(f"{col}" for col in table["columns"])
-    lines.append("  " + header)
-    for row in table["rows"]:
-        lines.append("  " + "  ".join(str(cell) for cell in row))
-    lines.append("")
-    lines.append("题目：" + problem["question"])
+    lines.append("题目：" + str(problem.get("question") or ""))
     lines.append("-" * 60)
     return "\n".join(lines)
 

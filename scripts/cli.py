@@ -198,31 +198,39 @@ def _print_problem(problem: Dict[str, Any]) -> None:
     """
     print()
     print(_rule("═"))
-    difficulty = str(problem["level_id"]).split("-")[-1]
-    print(f"  第 {problem['stage']} 关 · {problem['stage_name']}　第 {difficulty} 难")
-    print(
-        f"  年级：{problem['grade']} 年级（知识点所属）"
-        f"｜所属关：第 {problem['stage']} 关 {problem['stage_name']}"
-    )
-    if problem.get("story_id") and problem["story_id"] != problem_gen.default_story():
+    stage_no = int(problem.get("stage") or 0)
+    if stage_no:
+        difficulty = str(problem["level_id"]).split("-")[-1]
+        print(f"  第 {stage_no} 关 · {problem['stage_name']}　第 {difficulty} 难")
+        print(
+            f"  年级：{problem['grade']} 年级（知识点所属）"
+            f"｜所属关：第 {stage_no} 关 {problem['stage_name']}"
+        )
+    else:
+        # 无故事线路径（语文 / 英语）：没有「第几关」的概念，改印学科与题型。
+        # 题型印中文显示名（skill_name），不印 poem_fill 这类内部标识。
+        print(f"  {problem.get('story_name', '')} · {problem.get('skill_name') or problem.get('skill', '')}")
+        print(f"  年级：{problem['grade']} 年级（知识点所属）")
+    if problem.get("story_id") and problem["story_id"] != problem_gen.default_story() and stage_no:
         print(f"  故事线：{problem.get('story_name', '')}（{problem['story_id']}）")
     print(f"  知识点：{problem['kp_name']}")
     print(f"  {_source_banner(problem['data_source'])}")
     print(_rule("─"))
     print(f"  {problem['story']}")
     print()
-    table = problem["data_table"]
-    print(f"  {table['title']}：")
-    all_rows = [list(table["columns"])] + [list(row) for row in table["rows"]]
-    widths = [
-        max(_display_width(row[index]) for row in all_rows) + 2
-        for index in range(len(table["columns"]))
-    ]
-    print("    " + "".join(_pad(col, widths[index]) for index, col in enumerate(table["columns"])).rstrip())
-    print("    " + "-" * (sum(widths) - 2))
-    for row in table["rows"]:
-        print("    " + "".join(_pad(cell, widths[index]) for index, cell in enumerate(row)).rstrip())
-    print()
+    table = problem.get("data_table") or {}
+    if table.get("columns"):
+        print(f"  {table['title']}：")
+        all_rows = [list(table["columns"])] + [list(row) for row in table["rows"]]
+        widths = [
+            max(_display_width(row[index]) for row in all_rows) + 2
+            for index in range(len(table["columns"]))
+        ]
+        print("    " + "".join(_pad(col, widths[index]) for index, col in enumerate(table["columns"])).rstrip())
+        print("    " + "-" * (sum(widths) - 2))
+        for row in table["rows"]:
+            print("    " + "".join(_pad(cell, widths[index]) for index, cell in enumerate(row)).rstrip())
+        print()
     print(f"  题目：{problem['question']}")
     print(_rule("─"))
     print("  输入答案后回车；h = 求提示（最多 3 次），s = 跳过，q = 退出")
@@ -646,12 +654,32 @@ def _play_stage(args: argparse.Namespace, sid: str, stage: int) -> int:
     return 0
 
 
+def subject_choices() -> List[str]:
+    """``--subject`` 的可选值（来自学科注册表，只含已上线学科）。
+
+    注册表读不到时退化为 ``["math"]``，保证 ``--help`` 永远能打印出来
+    （argparse 在构造 parser 时就会调用本函数）。
+    """
+    try:
+        import subjects  # noqa: E402
+
+        ids = subjects.subject_ids(only_available=True)
+    except Exception:  # pragma: no cover - 注册表缺失时的兜底
+        return [problem_gen.MATH_SUBJECT]
+    return ids or [problem_gen.MATH_SUBJECT]
+
+
 def cmd_play(args: argparse.Namespace) -> int:
     """交互式答题：``--level 3`` 走闯关玩法，``--level 3-2`` 走旧的单题模式。"""
     count = max(1, int(args.count))
     level_id: Optional[str] = args.level
     story = getattr(args, "story", None)
     sid = str(story or problem_gen.default_story())
+
+    # 非数学学科没有故事线关卡，改走「无故事线路径」：按知识点 + skill 出题。
+    subject = getattr(args, "subject", None)
+    skill = getattr(args, "skill", None)
+    use_subject_path = bool(subject) and str(subject) != problem_gen.MATH_SUBJECT
 
     stage = _stage_from_args(args)
     if stage is not None:
@@ -668,7 +696,9 @@ def cmd_play(args: argparse.Namespace) -> int:
                     grade=args.grade,
                     kp_id=args.kp,
                     salt=None if args.seed is None else f"{args.seed}-{index}",
-                    story=sid,
+                    story=None if use_subject_path else sid,
+                    subject=subject if use_subject_path else None,
+                    skill=skill if use_subject_path else None,
                 )
             )
 
@@ -705,7 +735,10 @@ def cmd_play(args: argparse.Namespace) -> int:
                     print("  三级提示已经全部给出，试着自己写一写。")
                 continue
             if not raw:
-                print("  请输入一个数值，或输入 h 求提示。")
+                if str(problem.get("answer_type") or "number") in verify.TEXT_ANSWER_TYPES:
+                    print("  请输入答案（文字题直接写内容），或输入 h 求提示。")
+                else:
+                    print("  请输入一个数值，或输入 h 求提示。")
                 continue
 
             tries += 1
@@ -721,7 +754,11 @@ def cmd_play(args: argparse.Namespace) -> int:
             )
             if result["correct"]:
                 print()
-                print(f"  正确！参考答案 {result['expected']} {problem['unit']}。")
+                unit_text = f" {problem['unit']}" if str(problem.get("unit") or "").strip() else ""
+                answer_text = str(result["expected"])
+                # 文本答案本身可能已带句号（如古诗），避免出现「……」的叠标点。
+                ending = "" if answer_text.endswith(("。", "！", "？", ".", "!", "?")) else "。"
+                print(f"  正确！参考答案 {answer_text}{unit_text}{ending}")
                 print(f"  校验来源：{verify.verify_source_label(result['verify_source'])}")
                 answered_correctly = True
                 solved += 1
@@ -912,9 +949,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--stage", type=int, default=None, choices=list(range(1, 10)), help="关号 1~9（闯关玩法）"
     )
     play.add_argument("--grade", type=int, default=None, choices=[3, 4, 5, 6], help="按年级随机出题")
-    play.add_argument("--kp", default=None, help="按知识点出题，如 g3_div_basic")
+    play.add_argument("--kp", default=None, help="按知识点出题，如 g3_div_basic / c3_poem_spring")
     play.add_argument("--count", type=int, default=1, help="连续出几题，默认 1")
     play.add_argument("--seed", default=None, help="随机种子，便于复现同一场/同一道题")
+    play.add_argument(
+        "--subject",
+        default=None,
+        choices=subject_choices(),
+        help="选择学科；非数学学科走「无故事线路径」（语文 / 英语没有关卡，按知识点出题）",
+    )
+    play.add_argument(
+        "--skill",
+        default=None,
+        help="显式指定题型技能名，如 poem_fill / word_order / spell_fill（一般不用填，由知识点决定）",
+    )
     play.set_defaults(func=cmd_play)
 
     chars = sub.add_parser("characters", help="角色图鉴：每条线 14 名角色的三种状态")

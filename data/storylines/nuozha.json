@@ -1,0 +1,526 @@
+{
+  "id": "nuozha",
+  "name": "哪吒闹海",
+  "subtitle": "陈塘渡口，账目分明",
+  "era_note": "取材于《封神演义》原著（公有领域）",
+  "roles": {
+    "clever": "哪吒",
+    "price": "龟丞相",
+    "unit": "金吒",
+    "review": "李靖"
+  },
+  "order": 6,
+  "scene_variants": [
+    "清早的",
+    "半晌的",
+    "午后的",
+    "黄昏的",
+    "天刚亮的",
+    "歇脚时的",
+    "动身前的",
+    "半路上的",
+    "入夜前的",
+    "归途中的"
+  ],
+  "version": "2.0.0",
+  "description": "「麦麦取经录」哪吒闹海故事线：九关八十一难，只借陈塘关与东海渡口的日常场景作数学任务外壳，不叙述原典情节；数学模板与其他故事线完全一致。",
+  "disclaimer": "本文件中的故事情境仅作数学题目的比喻外壳，不含任何宗教、超自然或暴力表述；只取用公有领域古典小说里的人物与地名，不叙述原典情节。餐品数据以麦当劳官方渠道实时结果为准。",
+  "compliance_note": "本线仅取用公有领域古典小说的人物与地名，不涉及宗教表述、不涉及暴力或法术情节；所有题目为小学计算题。",
+  "stages": [
+    {
+      "stage": 1,
+      "name": "陈塘点货",
+      "theme": "把两堆干粮合起来：加法就是把数量并成一堆",
+      "scene": "陈塘关粮仓",
+      "role_focus": "李靖",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "nuozha-1-1",
+          "kp_id": "g3_add_sub",
+          "brief": "把粮仓里各样干粮的热量合并"
+        },
+        {
+          "level_id": "nuozha-1-2",
+          "kp_id": "g3_add_sub",
+          "brief": "先估一估总量，再逐样相加"
+        },
+        {
+          "level_id": "nuozha-1-3",
+          "kp_id": "g3_add_sub",
+          "brief": "早点和午餐的能量合在一起"
+        },
+        {
+          "level_id": "nuozha-1-4",
+          "kp_id": "g3_add_sub",
+          "brief": "把当日配给的热量挨个累加"
+        },
+        {
+          "level_id": "nuozha-1-5",
+          "kp_id": "g3_add_sub",
+          "brief": "主食与饮品的能量相加"
+        },
+        {
+          "level_id": "nuozha-1-6",
+          "kp_id": "g3_add_sub",
+          "brief": "干粮和腌菜的热量并入一本账"
+        },
+        {
+          "level_id": "nuozha-1-7",
+          "kp_id": "g3_add_sub",
+          "brief": "把补给的热量逐项汇总"
+        },
+        {
+          "level_id": "nuozha-1-8",
+          "kp_id": "g3_add_sub",
+          "brief": "各样口粮的热量一笔笔记上"
+        },
+        {
+          "level_id": "nuozha-1-9",
+          "kp_id": "g3_add_sub",
+          "brief": "全部餐品的能量汇总成一个数"
+        }
+      ]
+    },
+    {
+      "stage": 2,
+      "name": "渡口卸船",
+      "theme": "先合后减：用掉一部分，还要知道剩下多少",
+      "scene": "东海渡口",
+      "role_focus": "殷夫人",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "nuozha-2-1",
+          "kp_id": "g3_multi_sub",
+          "brief": "卸完船算算还剩多少干粮"
+        },
+        {
+          "level_id": "nuozha-2-2",
+          "kp_id": "g3_multi_sub",
+          "brief": "从预算里扣掉已经用掉的部分"
+        },
+        {
+          "level_id": "nuozha-2-3",
+          "kp_id": "g3_multi_sub",
+          "brief": "先合后减，求出剩余的量"
+        },
+        {
+          "level_id": "nuozha-2-4",
+          "kp_id": "g3_multi_sub",
+          "brief": "已发下去的口粮从总量里减掉"
+        },
+        {
+          "level_id": "nuozha-2-5",
+          "kp_id": "g3_multi_sub",
+          "brief": "算算舱里还余下多少"
+        },
+        {
+          "level_id": "nuozha-2-6",
+          "kp_id": "g3_multi_sub",
+          "brief": "用掉的从总账里逐笔扣除"
+        },
+        {
+          "level_id": "nuozha-2-7",
+          "kp_id": "g3_multi_sub",
+          "brief": "预留的和实发的相差多少"
+        },
+        {
+          "level_id": "nuozha-2-8",
+          "kp_id": "g3_multi_sub",
+          "brief": "先算已用总量，再求剩余"
+        },
+        {
+          "level_id": "nuozha-2-9",
+          "kp_id": "g3_multi_sub",
+          "brief": "结算之后还剩多少可支配"
+        }
+      ]
+    },
+    {
+      "stage": 3,
+      "name": "集市采买",
+      "theme": "几个几：单价乘份数就是总价",
+      "scene": "陈塘关集市",
+      "role_focus": "哪吒",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "nuozha-3-1",
+          "kp_id": "g3_money",
+          "brief": "按单价和份数算一笔总价"
+        },
+        {
+          "level_id": "nuozha-3-2",
+          "kp_id": "g3_money",
+          "brief": "几个几相加可以写成乘法"
+        },
+        {
+          "level_id": "nuozha-3-3",
+          "kp_id": "g3_money",
+          "brief": "这次采买的总金额是多少"
+        },
+        {
+          "level_id": "nuozha-3-4",
+          "kp_id": "g3_money",
+          "brief": "先算每样总价，再合并"
+        },
+        {
+          "level_id": "nuozha-3-5",
+          "kp_id": "g3_money",
+          "brief": "摊位上买若干份要付多少"
+        },
+        {
+          "level_id": "nuozha-3-6",
+          "kp_id": "g3_money",
+          "brief": "照着价目表把总账算出来"
+        },
+        {
+          "level_id": "nuozha-3-7",
+          "kp_id": "g3_money",
+          "brief": "用乘法求这批货的价钱"
+        },
+        {
+          "level_id": "nuozha-3-8",
+          "kp_id": "g3_money",
+          "brief": "单价乘份数得总价"
+        },
+        {
+          "level_id": "nuozha-3-9",
+          "kp_id": "g3_money",
+          "brief": "一次采买的总花费"
+        }
+      ]
+    },
+    {
+      "stage": 4,
+      "name": "鱼篓分装",
+      "theme": "平均分：把总量分成一样多的几份",
+      "scene": "渔行码头",
+      "role_focus": "木吒",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "nuozha-4-1",
+          "kp_id": "g3_div_basic",
+          "brief": "平均装进几个鱼篓，每篓多少"
+        },
+        {
+          "level_id": "nuozha-4-2",
+          "kp_id": "g3_div_basic",
+          "brief": "算算能装几篓，还余下多少"
+        },
+        {
+          "level_id": "nuozha-4-3",
+          "kp_id": "g3_div_basic",
+          "brief": "把总量平均分成若干份"
+        },
+        {
+          "level_id": "nuozha-4-4",
+          "kp_id": "g3_div_basic",
+          "brief": "每篓装一样多，一篓多少斤"
+        },
+        {
+          "level_id": "nuozha-4-5",
+          "kp_id": "g3_div_basic",
+          "brief": "求商和余数各是多少"
+        },
+        {
+          "level_id": "nuozha-4-6",
+          "kp_id": "g3_div_basic",
+          "brief": "分装完还剩多少零头"
+        },
+        {
+          "level_id": "nuozha-4-7",
+          "kp_id": "g3_div_basic",
+          "brief": "按每篓固定重量分装"
+        },
+        {
+          "level_id": "nuozha-4-8",
+          "kp_id": "g3_div_basic",
+          "brief": "一共能装满多少篓"
+        },
+        {
+          "level_id": "nuozha-4-9",
+          "kp_id": "g3_div_basic",
+          "brief": "平均分配之后的每份数量"
+        }
+      ]
+    },
+    {
+      "stage": 5,
+      "name": "过秤登记",
+      "theme": "单位进率：克与千克之间的换算",
+      "scene": "渔行秤房",
+      "role_focus": "金吒",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "nuozha-5-1",
+          "kp_id": "g3_unit_measure",
+          "brief": "过秤之后按克登记总量"
+        },
+        {
+          "level_id": "nuozha-5-2",
+          "kp_id": "g3_unit_measure",
+          "brief": "把克数换成千克记入账册"
+        },
+        {
+          "level_id": "nuozha-5-3",
+          "kp_id": "g3_unit_measure",
+          "brief": "先求总克数，再换单位"
+        },
+        {
+          "level_id": "nuozha-5-4",
+          "kp_id": "g3_unit_measure",
+          "brief": "每份净含量乘份数再换算"
+        },
+        {
+          "level_id": "nuozha-5-5",
+          "kp_id": "g3_unit_measure",
+          "brief": "秤房登记的千克数是多少"
+        },
+        {
+          "level_id": "nuozha-5-6",
+          "kp_id": "g3_unit_measure",
+          "brief": "合计重量用千克表示"
+        },
+        {
+          "level_id": "nuozha-5-7",
+          "kp_id": "g3_unit_measure",
+          "brief": "克与千克之间的进率换算"
+        },
+        {
+          "level_id": "nuozha-5-8",
+          "kp_id": "g3_unit_measure",
+          "brief": "把称得的重量换算成千克"
+        },
+        {
+          "level_id": "nuozha-5-9",
+          "kp_id": "g3_unit_measure",
+          "brief": "登记册上写下的总重量"
+        }
+      ]
+    },
+    {
+      "stage": 6,
+      "name": "潮时记刻",
+      "theme": "经过时间：从开始到结束一共走了多久",
+      "scene": "观潮台",
+      "role_focus": "太乙真人",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "nuozha-6-1",
+          "kp_id": "g3_calendar",
+          "brief": "按天数算算一共走了多少路"
+        },
+        {
+          "level_id": "nuozha-6-2",
+          "kp_id": "g3_calendar",
+          "brief": "从启程到返程共经过几天"
+        },
+        {
+          "level_id": "nuozha-6-3",
+          "kp_id": "g3_calendar",
+          "brief": "每日里程乘天数得总里程"
+        },
+        {
+          "level_id": "nuozha-6-4",
+          "kp_id": "g3_calendar",
+          "brief": "用 24 时计时法算经过时间"
+        },
+        {
+          "level_id": "nuozha-6-5",
+          "kp_id": "g3_calendar",
+          "brief": "含首尾一共记多少日"
+        },
+        {
+          "level_id": "nuozha-6-6",
+          "kp_id": "g3_calendar",
+          "brief": "潮起潮落之间的时长"
+        },
+        {
+          "level_id": "nuozha-6-7",
+          "kp_id": "g3_calendar",
+          "brief": "行程横跨几昼夜"
+        },
+        {
+          "level_id": "nuozha-6-8",
+          "kp_id": "g3_calendar",
+          "brief": "按日程表推进累计多少天"
+        },
+        {
+          "level_id": "nuozha-6-9",
+          "kp_id": "g3_calendar",
+          "brief": "全程用掉的时间合计"
+        }
+      ]
+    },
+    {
+      "stage": 7,
+      "name": "棚屋分饼",
+      "theme": "部分与整体：分到的是整体的几分之几",
+      "scene": "渡口棚屋",
+      "role_focus": "敖丙",
+      "grade_hint": 3,
+      "levels": [
+        {
+          "level_id": "nuozha-7-1",
+          "kp_id": "g3_fraction_intro",
+          "brief": "求出这块饼占整体的几分之几"
+        },
+        {
+          "level_id": "nuozha-7-2",
+          "kp_id": "g3_fraction_intro",
+          "brief": "平均分成几份后取其中一份"
+        },
+        {
+          "level_id": "nuozha-7-3",
+          "kp_id": "g3_fraction_intro",
+          "brief": "部分与整体的比是多少"
+        },
+        {
+          "level_id": "nuozha-7-4",
+          "kp_id": "g3_fraction_intro",
+          "brief": "算出的分数要约成最简"
+        },
+        {
+          "level_id": "nuozha-7-5",
+          "kp_id": "g3_fraction_intro",
+          "brief": "一人分到整体的几分之几"
+        },
+        {
+          "level_id": "nuozha-7-6",
+          "kp_id": "g3_fraction_intro",
+          "brief": "先求部分再求所占份额"
+        },
+        {
+          "level_id": "nuozha-7-7",
+          "kp_id": "g3_fraction_intro",
+          "brief": "把分到的量写成最简分数"
+        },
+        {
+          "level_id": "nuozha-7-8",
+          "kp_id": "g3_fraction_intro",
+          "brief": "占总量几成要写成分数"
+        },
+        {
+          "level_id": "nuozha-7-9",
+          "kp_id": "g3_fraction_intro",
+          "brief": "分享了整体中的哪一份"
+        }
+      ]
+    },
+    {
+      "stage": 8,
+      "name": "账目复核",
+      "theme": "平均数：总数除以份数",
+      "scene": "渡口账房",
+      "role_focus": "东海龙王",
+      "grade_hint": 4,
+      "levels": [
+        {
+          "level_id": "nuozha-8-1",
+          "kp_id": "g4_bar_chart",
+          "brief": "求这几样餐品的平均单价"
+        },
+        {
+          "level_id": "nuozha-8-2",
+          "kp_id": "g4_bar_chart",
+          "brief": "总数除以份数得平均数"
+        },
+        {
+          "level_id": "nuozha-8-3",
+          "kp_id": "g4_bar_chart",
+          "brief": "一日的平均开销是多少"
+        },
+        {
+          "level_id": "nuozha-8-4",
+          "kp_id": "g4_bar_chart",
+          "brief": "把总额平摊到每份上"
+        },
+        {
+          "level_id": "nuozha-8-5",
+          "kp_id": "g4_bar_chart",
+          "brief": "平均每样值多少钱"
+        },
+        {
+          "level_id": "nuozha-8-6",
+          "kp_id": "g4_bar_chart",
+          "brief": "算出单价的中间水平"
+        },
+        {
+          "level_id": "nuozha-8-7",
+          "kp_id": "g4_bar_chart",
+          "brief": "平摊之后每份的价钱"
+        },
+        {
+          "level_id": "nuozha-8-8",
+          "kp_id": "g4_bar_chart",
+          "brief": "几笔账合起来的平均额"
+        },
+        {
+          "level_id": "nuozha-8-9",
+          "kp_id": "g4_bar_chart",
+          "brief": "算出的平均数值是多少"
+        }
+      ]
+    },
+    {
+      "stage": 9,
+      "name": "采买结算",
+      "theme": "满减与折扣：原价减去优惠才是实付",
+      "scene": "集市货栈",
+      "role_focus": "龟丞相",
+      "grade_hint": 6,
+      "levels": [
+        {
+          "level_id": "nuozha-9-1",
+          "kp_id": "g6_discount",
+          "brief": "满减之后实际付多少"
+        },
+        {
+          "level_id": "nuozha-9-2",
+          "kp_id": "g6_discount",
+          "brief": "按券面额算抵扣后的金额"
+        },
+        {
+          "level_id": "nuozha-9-3",
+          "kp_id": "g6_discount",
+          "brief": "求出实付金额是多少"
+        },
+        {
+          "level_id": "nuozha-9-4",
+          "kp_id": "g6_discount",
+          "brief": "折扣算完应付多少钱"
+        },
+        {
+          "level_id": "nuozha-9-5",
+          "kp_id": "g6_discount",
+          "brief": "结算时能省下多少"
+        },
+        {
+          "level_id": "nuozha-9-6",
+          "kp_id": "g6_discount",
+          "brief": "够不够满减门槛，够了就抵扣"
+        },
+        {
+          "level_id": "nuozha-9-7",
+          "kp_id": "g6_discount",
+          "brief": "优惠后相当于便宜了几成"
+        },
+        {
+          "level_id": "nuozha-9-8",
+          "kp_id": "g6_discount",
+          "brief": "折扣率换算成实付额"
+        },
+        {
+          "level_id": "nuozha-9-9",
+          "kp_id": "g6_discount",
+          "brief": "最后一笔账的结算金额"
+        }
+      ]
+    }
+  ]
+}

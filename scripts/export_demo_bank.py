@@ -40,7 +40,7 @@ import sys
 import tempfile
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 if __package__ in (None, ""):  # pragma: no cover - 脚本运行路径
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -63,6 +63,70 @@ EGG_ENGINE_PATH: Path = DEMO_DIR / "egg-engine.js"
 BG_START = "/* @@BG_START@@ */"
 BG_END = "/* @@BG_END@@ */"
 BG_ASSETS_DIR: Path = DEMO_DIR / "assets"
+
+KP_BADGE_START = "<!-- @@KP_BADGE_START@@ -->"
+KP_BADGE_END = "<!-- @@KP_BADGE_END@@ -->"
+"""首屏徽章「3-6 年级 · N 个知识点」的标记段。
+
+**为什么要设这段标记**：这行徽章以前是手写死在 ``demo/index.html`` 里的
+「3-6 年级 · 25 个知识点」。新增 ``g6_discount`` 之后实际是 26 个知识点，
+但这行手写文案不会跟着变——它成了全站唯一一处**会自己漂的统计数字**
+（其余统计「七条故事线」「567」都由 JS 按 ``BANK`` 现算）。
+
+所以把它的**唯一真相源**收回到 ``data/curriculum.json``：导出时按标记重算重写，
+``selfcheck`` 再断言「徽章里的数字 == 数学 kp 数」，从此不可能漂。
+用标记而不是让 JS 填，是为了不引入额外的启动期脚本依赖——
+徽章在 ``<script>`` 之前就已经是正确文案，JS 挂了也照样对。
+"""
+
+
+def kp_badge_text() -> str:
+    """首屏徽章的文案：年级区间 + 数学知识点总数，全部从 ``curriculum.json`` 现算。
+
+    年级区间取「至少有一个 kp 的年级」的最小值与最大值，与 ``kp_index()`` 的
+    展示口径同源——这样新增 2 年级的 kp 时，徽章会自动变成「2-6 年级」。
+
+    Returns:
+        形如 ``"3-6 年级 · 26 个知识点"`` 的文案。
+    """
+    payload = problem_gen.load_curriculum(problem_gen.MATH_SUBJECT)
+    grades: List[int] = []
+    total = 0
+    for block in payload.get("grades") or []:
+        kps = block.get("kps") or []
+        total += len(kps)
+        if kps:
+            grades.append(int(block.get("grade") or 0))
+    unique = sorted(set(grades))
+    if not unique:
+        span = "3-6"
+    elif len(unique) == 1:
+        span = str(unique[0])
+    else:
+        span = f"{unique[0]}-{unique[-1]}"
+    return f"{span} 年级 · {total} 个知识点"
+
+
+def inject_kp_badge(html: str) -> str:
+    """按标记重写首屏徽章文案（幂等：连跑多次结果相同）。
+
+    Args:
+        html: ``demo/index.html`` 全文。
+
+    Returns:
+        徽章已刷新后的全文。
+
+    Raises:
+        SystemExit: 标记缺失（说明有人手改 HTML 时把标记删了）。
+    """
+    if KP_BADGE_START not in html or KP_BADGE_END not in html:
+        raise SystemExit(
+            f"index.html 缺少 {KP_BADGE_START} / {KP_BADGE_END} 标记，无法刷新知识点徽章。"
+        )
+    head, rest = html.split(KP_BADGE_START, 1)
+    _, tail = rest.split(KP_BADGE_END, 1)
+    return f"{head}{KP_BADGE_START}{kp_badge_text()}{KP_BADGE_END}{tail}"
+
 
 BG_ASSETS: List[str] = ["bg-hero", "bg-pattern", "bg-map", "bg-codex", "bg-result"]
 """需要内联进演示页的背景位图（文件名不含扩展名；只取 .jpg，png 太大不划算）。
@@ -209,11 +273,21 @@ def _meta(diagnosis: Dict[str, Any]) -> Dict[str, Any]:
     return payload
 
 
-def _answer_number(problem: Dict[str, Any]) -> float:
+def _answer_number(problem: Dict[str, Any]) -> Optional[float]:
     """答案转成演示页比较用的数值（百分数只写数值，单位单独放 ``unit``）。
 
     分数答案（课标整改新增的 fraction 题型，如 ``6/19``）转成数值比较用；
     原始文本另存在 ``answerText``，演示页按 ``answerType`` 走精确比较。
+
+    **非数值答案（语文 / 英语的文本题）返回 ``None``，不再抛 ``InvalidOperation``。**
+    这是护栏：早期实现直接 ``raise``，只要有一道文本题误入题库，整个
+    ``build_bank()`` 就会崩、``selfcheck`` 直接 FAIL，而且报错点离真正的原因很远。
+
+    Args:
+        problem: 题目字典。
+
+    Returns:
+        演示页可直接比较的数值；无法数值化时返回 ``None``。
     """
     text = str(problem.get("answer", "")).replace("%", "").strip()
     try:
@@ -221,10 +295,10 @@ def _answer_number(problem: Dict[str, Any]) -> float:
     except InvalidOperation:
         match = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)\s*$", text)
         if not match:
-            raise
+            return None
         denominator = Decimal(match.group(2))
         if denominator == 0:
-            raise ValueError("分数答案的分母不能为 0")
+            return None
         return float(Decimal(match.group(1)) / denominator)
 
 
@@ -311,6 +385,11 @@ def build_bank() -> Dict[str, Any]:
                 problem = problem_gen.generate(
                     level_id=level_id, salt=f"demo-{sid}-{level_id}"
                 )
+                # 只收数学题：演示页的判分只有数值比较（answerType === "fraction" ? 1e-9 : TOL），
+                # 没有文本比对分支。语文 / 英语的文本答案进来会变成「永远判错」，
+                # 所以它们只走 CLI，不进题库——前端因此零改动、零回归风险。
+                if str(problem.get("subject") or problem_gen.MATH_SUBJECT) != problem_gen.MATH_SUBJECT:
+                    continue
                 problems.append(project(problem))
         bank[sid] = problems
         stage_bank[sid] = _stage_bank(sid)
@@ -544,6 +623,9 @@ def main() -> int:
     html = inject(html, payload)
     html = inject_egg(html)
     html = inject_backgrounds(html)
+    # 徽章必须最后刷：它读的是 curriculum.json，与题库无关，但放在最后能保证
+    # 前面任何一步即使重写了整块 HTML 也不会把徽章覆盖回旧文案。
+    html = inject_kp_badge(html)
     HTML_PATH.write_text(html, encoding="utf-8")
     total = sum(len(items) for items in payload["bank"].values())
     chars = sum(len(items) for items in payload["characters"].values())

@@ -1,0 +1,128 @@
+{
+  "version": "1.0.0",
+  "subject": "chinese",
+  "description": "小学 3-6 年级语文知识点图谱（古诗积累与字词辨析），供出题引擎按 skill 派发到 scripts/subjects/chinese/templates.py。",
+  "curriculum_note": "语文学科不参与「九关八十一难」的故事线玩法：它没有关卡数据，出题走 generate(kp_id=..., subject='chinese') 的无故事线路径，通过 CLI 交付。答案类型只有 text 与 enum 两种，判分走归一化后的同义集合命中（见 verify.normalize_text）。本学科题库不进演示页（演示页只做数值比对）。所有选文均为公有领域古典诗文（作者逝世逾千年），不涉及宗教与暴力表述。",
+  "grades": [
+    {
+      "grade": 3,
+      "kps": [
+        {
+          "id": "c3_poem_spring",
+          "subject": "chinese",
+          "skill": "poem_fill",
+          "name": "春天的名句",
+          "desc": "补全描写春天的经典诗句，在默写中体会诗人抓住的景物特点。",
+          "keywords": ["古诗", "默写", "写景", "春天"],
+          "textbook_ref": "统编版三下「古诗三首」等",
+          "note": "选文为唐宋公有领域名篇，只考补全，不考作者生平。"
+        },
+        {
+          "id": "c3_poem_number",
+          "subject": "chinese",
+          "skill": "poem_fill",
+          "name": "数字入诗",
+          "desc": "补全含数字的经典诗句，感受数字在诗里既是数量也是画面。",
+          "keywords": ["古诗", "默写", "数字", "数量词"],
+          "textbook_ref": "统编版二上「古诗二首」、三上「古诗三首」等",
+          "note": "这一组与数学学科的「数量」概念互相呼应，适合跨学科练习。"
+        },
+        {
+          "id": "c3_word_homophone",
+          "subject": "chinese",
+          "skill": "word_order",
+          "name": "同音字辨析",
+          "desc": "在同一读音的形近字之间选出与语境相符的一个。",
+          "keywords": ["同音字", "形近字", "选词填空"],
+          "textbook_ref": "统编版三上「语文园地」字词积累",
+          "note": "每题只考一个字的选择，答案唯一，便于机器判分。"
+        },
+        {
+          "id": "c3_word_measure",
+          "subject": "chinese",
+          "skill": "word_order",
+          "name": "量词搭配",
+          "desc": "为名词挑选恰当的量词，体会量词与事物形态、数量的关系。",
+          "keywords": ["量词", "搭配", "选词填空"],
+          "textbook_ref": "统编版二上「语文园地」量词积累",
+          "note": "量词题天然与「数」相关，可与数学的计数练习配套使用。"
+        }
+      ]
+    },
+    {
+      "grade": 4,
+      "kps": [
+        {
+          "id": "c4_poem_scenery",
+          "subject": "chinese",
+          "skill": "poem_fill",
+          "name": "写景名句",
+          "desc": "补全写景名句，比较诗人笔下山水的高低远近与明暗变化。",
+          "keywords": ["古诗", "默写", "写景", "比较"],
+          "textbook_ref": "统编版四上「古诗三首」、四下「古诗词三首」等",
+          "note": "选文为唐宋公有领域名篇。"
+        },
+        {
+          "id": "c4_word_synonym",
+          "subject": "chinese",
+          "skill": "word_order",
+          "name": "近义词辨析",
+          "desc": "在意思相近的词语之间选出与语境最贴合的一个。",
+          "keywords": ["近义词", "辨析", "选词填空"],
+          "textbook_ref": "统编版四上「语文园地」词句段运用",
+          "note": "每题给三个近义选项，只有一个与语境完全贴合。"
+        }
+      ]
+    },
+    {
+      "grade": 5,
+      "kps": [
+        {
+          "id": "c5_poem_homesick",
+          "subject": "chinese",
+          "skill": "poem_fill",
+          "name": "思乡名句",
+          "desc": "补全思乡怀人的经典诗句，体会诗人借月和雁寄托的心情。",
+          "keywords": ["古诗", "默写", "思乡", "借景抒情"],
+          "textbook_ref": "统编版五上「古诗词三首」、五下「古诗三首」等",
+          "note": "选文为唐宋公有领域名篇，不涉及宗教表述。"
+        },
+        {
+          "id": "c5_word_idiom",
+          "subject": "chinese",
+          "skill": "word_order",
+          "name": "成语辨析",
+          "desc": "在几个成语之间选出与句意最相合的一个，注意成语的适用对象与感情色彩。",
+          "keywords": ["成语", "辨析", "选词填空"],
+          "textbook_ref": "统编版五上、五下「语文园地」成语积累",
+          "note": "每题只考一条成语的选用，答案唯一。"
+        }
+      ]
+    },
+    {
+      "grade": 6,
+      "kps": [
+        {
+          "id": "c6_poem_philosophy",
+          "subject": "chinese",
+          "skill": "poem_fill",
+          "name": "哲理名句",
+          "desc": "补全含道理的经典诗句，读懂诗人把道理藏在景里的写法。",
+          "keywords": ["古诗", "默写", "哲理", "借景说理"],
+          "textbook_ref": "统编版六上「古诗词三首」、六下「古诗三首」等",
+          "note": "选文为唐宋公有领域名篇。"
+        },
+        {
+          "id": "c6_word_antonym",
+          "subject": "chinese",
+          "skill": "word_order",
+          "name": "反义词辨析",
+          "desc": "为给出的词语选出恰当的反义词，注意语境限定。",
+          "keywords": ["反义词", "辨析", "词义"],
+          "textbook_ref": "统编版六上「语文园地」词句段运用",
+          "note": "每题给三个选项，只有一个构成规范的反义关系。"
+        }
+      ]
+    }
+  ]
+}

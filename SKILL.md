@@ -110,6 +110,8 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 {
   "story_id": "xiyou",
   "story_name": "西游记",
+  "subject": "math",
+  "skill": "mul",
   "level_id": "3-2",
   "stage": 3,
   "stage_name": "八戒买饼",
@@ -138,6 +140,11 @@ description: 用麦当劳 MCP 的真实菜单/营养/价格/优惠券数据，�
 >
 > 注 2：`brief` 是关卡配置里那一句话的题面摘要（来自 `data/storylines/*.json`），用于列表与自检；
 > `diagnosis` 是错因诊断用的结构化元信息（`type` 决定走哪条诊断分支），两者都由 `generate()` 一并返回。
+>
+> 注 3：`subject`（学科 id）与 `skill`（题型技能名）是派发元信息。数学题恒为 `subject="math"`；
+> 语文 / 英语题的 `answer_type` 是 `text` 或 `enum`，此时 `answer` 是**文字答案**、
+> 可选键 `accept` 是显式登记的同义写法（判分时与 `answer` 一起归一化后做集合命中），
+> `data_table` 是空结构（无表格题型不渲染表头）。这两类题**不进演示页题库**，只通过 CLI 交付。
 >
 > 注 2：`data_table.title` 的后缀（`（示例数据）` / `（实时数据）` / `（缓存数据 YYYY-MM-DD）`）
 > 由 `data_source` 的实际级别决定，与题目字段严格同源——上例 `data_source` 为 `sample`，
