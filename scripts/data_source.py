@@ -44,7 +44,13 @@ from mcp_client import (  # noqa: E402  (延后导入：需要上面的 sys.path
 )
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
-CACHE_DIR: Path = PROJECT_ROOT / "data" / "cache"
+CACHE_DIR: Path = Path(os.environ.get("MMQJ_CACHE_DIR") or (PROJECT_ROOT / "data" / "cache"))
+"""MCP 抓取缓存目录。
+
+可用环境变量 ``MMQJ_CACHE_DIR`` 指到别处——``scripts/selfcheck.py`` 就是靠它
+把自检与「本机是否残留 MCP 缓存」隔离开：缓存里是**实时数据**、示例快照里是
+**演示数据**，两者题目数字不同，自检必须只认示例快照那一份。
+"""
 SAMPLE_PATH: Path = PROJECT_ROOT / "demo" / "sample_data.json"
 CACHE_TTL_SECONDS: int = 24 * 3600
 

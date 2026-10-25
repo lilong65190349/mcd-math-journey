@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -52,7 +53,8 @@ from mcp_client import READONLY_WHITELIST, TOKEN_ENV  # noqa: E402
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 SAMPLE_PATH: Path = PROJECT_ROOT / "demo" / "sample_data.json"
-CACHE_DIR: Path = PROJECT_ROOT / "data" / "cache"
+CACHE_DIR: Path = Path(os.environ.get("MMQJ_CACHE_DIR") or (PROJECT_ROOT / "data" / "cache"))
+"""MCP 抓取缓存目录（可用环境变量 ``MMQJ_CACHE_DIR`` 覆盖，理由同 ``data_source.py``）。"""
 
 MAX_HINTS: int = 3
 MAX_TRIES: int = 3

@@ -19,6 +19,10 @@ README 第七节写的是「真实运行结果」，一旦出题模板、CLI 文
 6. **随机彩蛋**（``data/run_rules.json`` 的 ``easter_egg`` 段）：必备键齐全且类型正确、
    pool 条目合法（id 唯一 / type ∈ {A,C,D} / weight 正整数 / C 类带 mini）、文案不过红线词表，
    且配置必须经导出流入 ``demo/bank.json`` 与 ``demo/index.html``（三处一致，防止只改一边）。
+7. **背景位图内联**（``demo/assets/bg-*.jpg`` → ``demo/index.html`` 的 base64 data URI）：
+   5 张全部内联、负载与源文件重新编码后逐字节对应、5 个消费点都接上了、
+   页面仍是零外部请求的单文件、且背景令牌**没有覆盖全局 ``--ink`` / ``--card``**
+   （覆盖了会让全站正文变白字，页面直接作废）。
 
 比对口径（重要）
 ----------------
@@ -34,10 +38,23 @@ README 第七节写的是「真实运行结果」，一旦出题模板、CLI 文
     python scripts/selfcheck.py          # 通过时打印 DOC_SYNC: OK，退出码 0
 
 只使用标准库；运行前后会备份 / 还原 ``runtime/progress.db``，不会破坏本机进度。
+
+**与本机状态隔离**（这一点很关键）：README 第七节记录的是「**示例数据快照**」口径的输出，
+而本机 ``data/cache/`` 里若残留着 24 小时内的 MCP 缓存，CLI 就会改用**缓存口径**——
+餐品名和营养数字都变成实时值，示例与文档自然对不上。所以自检跑之前会：
+
+* 在临时目录里建一个**空的** ``<tmp>/data/cache``，通过环境变量 ``MMQJ_CACHE_DIR``
+  指给子进程（``cli.py`` / ``data_source.py`` 都认这个变量）；
+* 本进程内也把 ``data_source.CACHE_DIR`` 指向同一个空目录并清掉出题缓存，
+  否则自检自己算「示例 2/3 的参考答案」时会读到实时数字，和子进程那份不是同一份。
+
+这样自检的结果**与调用者的本机状态无关**：有缓存、没缓存、有进度库、没进度库，
+首跑、二跑、跑一百次结果都一样。
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import math
 import os
@@ -63,6 +80,66 @@ BANK_START: str = "/* @@BANK_START@@ */"
 BANK_END: str = "/* @@BANK_END@@ */"
 EGG_START: str = "<!-- @@EGG_START@@ -->"
 EGG_END: str = "<!-- @@EGG_END@@ -->"
+
+BG_START: str = "/* @@BG_START@@ */"
+BG_END: str = "/* @@BG_END@@ */"
+BG_ASSETS_DIR: Path = PROJECT_ROOT / "demo" / "assets"
+BG_ASSETS: List[str] = ["bg-hero", "bg-pattern", "bg-map", "bg-codex", "bg-result"]
+"""5 张背景氛围位图（横幅 / 全站底纹 / 路线图 / 角色图鉴 / 结算页）。
+
+演示页必须**全部内联**成 base64 data URI：只内联一部分，页面就既不是「单文件」
+也不是「同一套素材」，两处会悄悄漂移。
+"""
+
+BG_TOKEN_NAMES: List[str] = [
+    "--hero-ink", "--hero-soft", "--hero-accent", "--hero-chip", "--hero-chip-ink",
+    "--hero-scrim", "--hero-scrim-soft",
+    "--result-ink", "--result-soft", "--result-accent", "--result-card",
+    "--result-scrim", "--result-scrim-deep",
+    "--map-scrim", "--map-scrim-soft",
+]
+"""背景配套的文字色令牌（**必须带命名空间前缀**）。
+
+裸键 ``ink`` / ``card`` 会覆盖全局 ``--ink`` / ``--card`` → 全站正文变白字、页面作废。
+"""
+
+GLOBAL_CSS_VARS: Dict[str, str] = {
+    "--paper": "#FFF9EF",
+    "--ink": "#3B2A20",
+    "--seal": "#DA291C",
+    "--muted": "#8A7563",
+    "--card": "#FFFFFF",
+    "--mcd-yellow": "#FFC72C",
+}
+"""全局主题变量的期望取值（背景令牌不许碰它们）。"""
+
+BG_CONSUMERS: Dict[str, str] = {
+    "--bg-pattern": "body（全站底纹）",
+    "--bg-hero": ".scroll-head（横幅）",
+    "--bg-map": "#mapPanel（路线图）",
+    "--bg-codex": "#codexPanel（角色图鉴）",
+    "--bg-result": "#resultPanel（结算页）",
+}
+"""5 个背景变量的消费处——**注入了但没接上**等于白做，必须逐个核对。"""
+
+BG_LAYER_RULES: Dict[str, List[str]] = {
+    "body": ["background-repeat", "background-size", "background-attachment"],
+    ".scroll-head": ["background-size", "background-position", "background-repeat"],
+    "#mapPanel": ["background-size", "background-position", "background-repeat"],
+    "#codexPanel": ["background-size", "background-repeat"],
+    "#resultPanel": ["background-size", "background-position", "background-repeat"],
+}
+"""每个消费点的背景层数校验表。
+
+CSS 里 ``background`` 简写有几层，``background-repeat`` / ``background-size`` /
+``background-position`` / ``background-attachment`` 就必须各给几个值——
+**值数对不上，整条声明直接作废**（不是「部分生效」）。所以这层断言能抓住
+「加了第 4 层罩纱却忘了补 repeat 的第 4 个值」这类低级但致命的错。
+"""
+
+DEMO_INDEX_MIN_BYTES: int = 1_200_000
+DEMO_INDEX_MAX_BYTES: int = 2_000_000
+"""demo/index.html 的体积预期区间（5 张位图 base64 内联后的真实体量）。"""
 
 EGG_MINI_KINDS = {"cloud_flip", "wukong_quiz", "peach_catch", "badge_match"}
 """C 类小游戏的四种合法取值（与 egg-engine.js 的 buildMini 一一对应）。"""
@@ -133,15 +210,22 @@ def normalize(text: str) -> str:
     return DATETIME_RE.sub("<时间>", text)
 
 
-def run(script: Path, args: List[str], stdin: str = "", db_path: str = "") -> str:
+def run(script: Path, args: List[str], stdin: str = "", db_path: str = "", cache_dir: str = "") -> str:
     """跑一条 CLI 命令并返回 stdout（stderr 丢弃，避免污染比对）。
 
     ``db_path`` 会通过环境变量 ``MMQJ_DB_PATH`` 传给子进程，让示例在一个**临时进度库**
     上复跑：既不污染用户自己的 ``runtime/progress.db``，也保证示例 1 永远是「首次运行」状态。
+
+    ``cache_dir`` 通过 ``MMQJ_CACHE_DIR`` 传：把子进程的 MCP 缓存目录指向一个**空目录**，
+    让示例走「示例数据快照」口径。README 第七节记录的示例就是示例数据口径；
+    若本机 ``data/cache/`` 里残留着 24 小时内的 MCP 缓存，``doctor`` 会打印
+    「本地缓存：N 个文件」、数据源级别变成 cache，示例就与文档对不上了。
     """
     env = dict(os.environ)
     if db_path:
         env["MMQJ_DB_PATH"] = db_path
+    if cache_dir:
+        env["MMQJ_CACHE_DIR"] = cache_dir
     completed = subprocess.run(
         [sys.executable, str(script)] + args,
         input=stdin,
@@ -213,16 +297,31 @@ def compare_block(block: str, output: str, first_line_no: int) -> List[Dict[str,
     return problems
 
 
-def collect_outputs(db_path: str) -> List[str]:
+def problem_gen_state_reset() -> None:
+    """清掉出题模块的进程内缓存（换数据源后必须清，否则还在用旧数字）。"""
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import problem_gen  # noqa: E402
+
+    problem_gen._STATE = None
+
+
+def collect_outputs(db_path: str, cache_dir: str = "") -> List[str]:
     """按 README 顺序复跑 5 段示例，返回各段真实输出。
 
     Args:
         db_path: 临时进度库路径，透传给子进程的 ``MMQJ_DB_PATH``。
+        cache_dir: 空的临时 MCP 缓存目录，透传给子进程的 ``MMQJ_CACHE_DIR``。
     """
     outputs: List[str] = []
-    outputs.append(run(CLI, ["doctor"], db_path=db_path))
+    outputs.append(run(CLI, ["doctor"], db_path=db_path, cache_dir=cache_dir))
     outputs.append(
-        run(CLI, ["play", "--level", "3-2", "--seed", "demo"], "h\nh\n29\n27\n", db_path)
+        run(
+            CLI,
+            ["play", "--level", "3-2", "--seed", "demo"],
+            "h\nh\n29\n27\n",
+            db_path,
+            cache_dir,
+        )
     )
     outputs.append(
         run(
@@ -230,13 +329,14 @@ def collect_outputs(db_path: str) -> List[str]:
             ["play", "--grade", "4", "--count", "5", "--seed", "g4"],
             expected_answers(5, 4, "g4"),
             db_path,
+            cache_dir,
         )
     )
-    outputs.append(run(CLI, ["wrongbook"], db_path=db_path))
+    outputs.append(run(CLI, ["wrongbook"], db_path=db_path, cache_dir=cache_dir))
     outputs.append(
-        run(CLI, ["report", "--days", "7"], db_path=db_path)
+        run(CLI, ["report", "--days", "7"], db_path=db_path, cache_dir=cache_dir)
         + "\n"
-        + run(DATA_CLI, ["--status"], db_path=db_path)
+        + run(DATA_CLI, ["--status"], db_path=db_path, cache_dir=cache_dir)
     )
     return outputs
 
@@ -852,6 +952,186 @@ def _is_positive_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
 
 
+def _split_top_level(value: str) -> List[str]:
+    """按**顶层**逗号切分 CSS 值（括号里的逗号不算）。"""
+    parts: List[str] = []
+    depth = 0
+    current: List[str] = []
+    for char in value:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(0, depth - 1)
+        if char == "," and depth == 0:
+            parts.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+    tail = "".join(current).strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def _rule_body(css: str, selector: str) -> str:
+    """取 CSS 里某选择器**最后一次**出现的规则体（找不到返回空串）。"""
+    body = ""
+    for match in re.finditer(rf"(?<![\w.#-]){re.escape(selector)}\s*\{{([^}}]*)\}}", css):
+        body = match.group(1)
+    return body
+
+
+def _background_layer_count(rule_body: str) -> int:
+    """数一条规则里的背景图层数。
+
+    先看 ``background`` 简写；没有简写就看 ``background-image``
+    （``body`` 用的是 ``background-color`` + ``background-image`` 的写法）。
+    """
+    match = re.search(r"(?<![\w-])background\s*:\s*([^;]+);", rule_body)
+    if not match:
+        match = re.search(r"(?<![\w-])background-image\s*:\s*([^;]+);", rule_body)
+    if not match:
+        return 0
+    return len(_split_top_level(match.group(1)))
+
+
+def check_background_layers(html: str) -> List[str]:
+    """校验每个背景消费点的「图层数」与 repeat / size / position / attachment 的值数一致。
+
+    CSS 规则：``background`` 简写有几层，后面的 ``background-repeat`` / ``background-size`` /
+    ``background-position`` / ``background-attachment`` 就必须各给几个值。
+    值数不够时**整条声明作废**（不是只丢掉多出来的那层），所以这里按「必须完全相等」判。
+
+    Args:
+        html: ``demo/index.html`` 的全文。
+
+    Returns:
+        问题描述列表；空列表表示通过。
+    """
+    problems: List[str] = []
+    for selector, properties in BG_LAYER_RULES.items():
+        rule = _rule_body(html, selector)
+        if not rule:
+            problems.append(f"演示页里找不到 {selector} 的样式规则")
+            continue
+        layers = _background_layer_count(rule)
+        if layers == 0:
+            problems.append(f"{selector} 没有 background 声明")
+            continue
+        for prop in properties:
+            match = re.search(rf"(?<![\w-]){re.escape(prop)}\s*:\s*([^;]+);", rule)
+            if not match:
+                problems.append(f"{selector} 有 {layers} 层背景，却没写 {prop}")
+                continue
+            values = len(_split_top_level(match.group(1)))
+            if values != layers:
+                problems.append(
+                    f"{selector} 的 {prop} 给了 {values} 个值，但背景有 {layers} 层"
+                    "（值数对不上，整条声明会作废）"
+                )
+    return problems
+
+
+def check_background_assets() -> List[str]:
+    """校验背景位图：5 张全部内联、负载与源文件逐字节对应、页面仍是零外部请求的单文件。
+
+    检查项（任何一项不满足都算 FAIL）：
+
+    1. ``demo/assets/`` 下 5 张 ``bg-*.jpg`` 都在；
+    2. ``demo/index.html`` 有 BG 标记，且 **5 张全部**内联成 base64 data URI；
+    3. 每个内联负载与源 jpg **重新 base64 编码后逐字节相同**（防「改了图忘了重跑脚本」）；
+    4. 背景令牌**不得覆盖全局主题变量** ``--ink`` / ``--card`` 等
+       （裸键 ``ink`` / ``card`` 写进 ``:root`` → 全站正文变白字，页面直接作废）；
+    5. 配套文字色令牌齐全（``--hero-ink`` / ``--result-ink`` …）；
+    6. 5 个消费点都真的用上了 ``var(--bg-*)``（注入了却没接上等于白做）；
+    7. 页面仍是**零外部资源**：HTML 里不得出现指向 ``.jpg`` / ``.png`` / ``http(s)`` 的
+       ``url(...)`` / ``src=`` / ``href=``（base64 data URI 与 SVG 片段引用除外）；
+    8. ``demo/index.html`` 体积落在预期区间（1.2MB ~ 2MB）。
+
+    Returns:
+        问题描述列表；空列表表示通过。
+    """
+    problems: List[str] = []
+    if not DEMO_INDEX.exists():
+        return ["缺少 demo/index.html"]
+    html = DEMO_INDEX.read_text(encoding="utf-8")
+    raw = DEMO_INDEX.read_bytes()
+
+    if BG_START not in html or BG_END not in html:
+        return [f"demo/index.html 缺少 {BG_START} / {BG_END} 标记，背景位图没有注入"]
+    block = html.split(BG_START, 1)[1].split(BG_END, 1)[0]
+
+    # ① 5 张全部内联，且负载与源文件逐字节对应
+    inlined = 0
+    for name in BG_ASSETS:
+        source = BG_ASSETS_DIR / f"{name}.jpg"
+        if not source.exists():
+            problems.append(f"缺少背景素材 demo/assets/{name}.jpg")
+            continue
+        payload = base64.b64encode(source.read_bytes()).decode("ascii")
+        needle = f'--{name}: url("data:image/jpeg;base64,{payload}")'
+        if needle in block:
+            inlined += 1
+        elif f"--{name}:" in block:
+            problems.append(
+                f"--{name} 的 base64 负载与 demo/assets/{name}.jpg 不一致"
+                "（素材被改过？请重跑 scripts/export_demo_bank.py）"
+            )
+        else:
+            problems.append(f"--{name} 没有内联进 demo/index.html")
+    if inlined != len(BG_ASSETS):
+        problems.append(f"只有 {inlined}/{len(BG_ASSETS)} 张背景位图被内联（应全部内联）")
+
+    # ② 背景令牌不得覆盖全局主题变量
+    written = set(re.findall(r"^\s*(--[A-Za-z0-9-]+)\s*:", block, re.M))
+    for var in GLOBAL_CSS_VARS:
+        if var in written:
+            problems.append(f"背景令牌覆盖了全局变量 {var}（会把全站配色打穿）")
+    for var, expected in (("--ink", "#3B2A20"), ("--card", "#FFFFFF")):
+        values = re.findall(rf"^\s*{re.escape(var)}\s*:\s*([^;]+);", html, re.M)
+        if not values:
+            problems.append(f"demo/index.html 里找不到全局变量 {var}")
+        elif values[-1].strip().lower() != expected.lower():
+            problems.append(
+                f"全局 {var} 的最终取值是 {values[-1].strip()}，应为 {expected}"
+                "（背景令牌把它打穿了 → 全站正文会变白字）"
+            )
+
+    # ③ 配套文字色令牌齐全
+    for token in BG_TOKEN_NAMES:
+        if token not in written:
+            problems.append(f"背景令牌 {token} 缺失（文字色令牌必须与图片同生共死）")
+
+    # ④ 5 个消费点都接上了
+    for var, where in BG_CONSUMERS.items():
+        if not re.search(rf"var\(\s*{re.escape(var)}\s*,", html):
+            problems.append(f"演示页没有消费 {var}（{where} 应接上背景位图）")
+
+    # ④b 图层数与 repeat / size / position / attachment 的值数必须一一对应
+    problems.extend(check_background_layers(html))
+
+    # ⑤ 零外部资源：双击可开、离线可用
+    for match in re.finditer(r"url\(([^)]*)\)", html):
+        target = match.group(1).strip().strip("\"'")
+        if target.startswith("data:") or target.startswith("#"):
+            continue
+        problems.append(f"demo/index.html 里有指向外部资源的 url({target[:60]})，破坏「单文件零外部请求」")
+    for match in re.finditer(r"\b(?:src|href)\s*=\s*\"([^\"]*)\"", html):
+        value = match.group(1)
+        if value.startswith("data:") or value.startswith("#"):
+            continue
+        problems.append(f"demo/index.html 里有外部资源引用 {value[:60]}，破坏「单文件零外部请求」")
+
+    # ⑥ 体积区间
+    size = len(raw)
+    if not (DEMO_INDEX_MIN_BYTES <= size <= DEMO_INDEX_MAX_BYTES):
+        problems.append(
+            f"demo/index.html 体积 {size} 字节，超出预期区间 "
+            f"{DEMO_INDEX_MIN_BYTES}~{DEMO_INDEX_MAX_BYTES}"
+        )
+    return problems
+
+
 def check_easter_egg() -> List[str]:
     """校验随机彩蛋：``run_rules.json`` 配置 → ``bank.json`` → ``index.html`` 三处一致。
 
@@ -1230,14 +1510,41 @@ def main() -> int:
     # 目录特意命名为 <tmp>/runtime/progress.db：这样示例 1 里 `...\runtime\progress.db`
     # 这类带省略号的路径行，在本机与临时库两种情况下都能按「分段包含」匹配上。
     #
-    # 因为每次都是全新建库，断言就与调用者的历史进度完全无关 —— 首跑、二跑、跑一百次
-    # 结果都一样（这是「幂等」的根治法：不依赖历史状态，也不靠预热）。
+    # 缓存目录同理：<tmp>/data/cache —— 既让示例走「示例数据快照」口径（README 第七节
+    # 记录的就是这个口径），又保留 `data\cache` 这个路径后缀，
+    # 所以 `本地缓存：0 个文件（目录 ...\data\cache）` 那行仍能按「分段包含」匹配。
+    # 目录名带 data\cache 是有意为之，README 里那行示例才对得上。
+    #
+    # 因为每次都是全新建库 + 全新空缓存目录，断言就与调用者的历史进度、本机是否残留
+    # MCP 缓存完全无关 —— 首跑、二跑、跑一百次结果都一样（这是「幂等」的根治法：
+    # 不依赖历史状态，也不靠预热）。
     tmpdir = tempfile.mkdtemp(prefix="mmqj-selfcheck-")
+    original_cache = None
     try:
         db_dir = Path(tmpdir) / "runtime"
         db_dir.mkdir(parents=True, exist_ok=True)
-        outputs = collect_outputs(str(db_dir / "progress.db"))
+        cache_dir = Path(tmpdir) / "data" / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        # 本进程内也要隔离：自检自己要算「示例 2/3 的参考答案」，
+        # 若这一步读到的是本机 MCP 缓存里的实时数字，算出来的答案和子进程
+        # （示例快照口径）不是同一份，断言就会自己打自己。
+        sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+        import data_source  # noqa: E402
+
+        original_cache = data_source.CACHE_DIR
+        data_source.CACHE_DIR = cache_dir
+        data_source.reset_client()
+        problem_gen_state_reset()
+        outputs = collect_outputs(str(db_dir / "progress.db"), str(cache_dir))
     finally:
+        # 恢复本进程的缓存目录：自检不该改调用者的运行环境
+        if original_cache is not None:
+            try:
+                data_source.CACHE_DIR = original_cache
+                data_source.reset_client()
+                problem_gen_state_reset()
+            except Exception:  # pragma: no cover - 恢复失败不影响校验结论
+                pass
         # 清理失败（例如系统装了 safe-delete 拦截）不能影响校验结论，也不能留脏目录
         shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -1301,6 +1608,16 @@ def main() -> int:
             {"line_no": 0, "expect": "彩蛋配置与引擎注入自洽（run_rules ↔ bank.json ↔ index.html）", "actual": issue}
         )
 
+    bg_issues = check_background_assets()
+    for issue in bg_issues:
+        problems.append(
+            {
+                "line_no": 0,
+                "expect": "背景位图内联一致（5 张全内联 / 负载与源文件对应 / 零外部请求 / 不覆盖全局变量）",
+                "actual": issue,
+            }
+        )
+
     if not problems:
         total_lines = sum(len(block.splitlines()) for block in blocks)
         print(
@@ -1312,6 +1629,7 @@ def main() -> int:
             f"README 规模数字一致（{story_levels} 个关卡位，{distinct} 条不同题面）；"
             f"角色 {char_total} 名（介绍 {char_short}~{char_long} 字）/ 场景修饰语 {scene_total} 条；"
             f"彩蛋配置 / pool / 引擎注入一致；"
+            f"背景位图 {len(BG_ASSETS)} 张全部内联且与 demo/assets/ 逐字节对应；"
             f"闯关规则断言全部通过"
         )
         return 0
